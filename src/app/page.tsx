@@ -1,65 +1,114 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import Link from "next/link";
+import { AddSessionDialog } from "@/components/AddSessionDialog";
+
+interface Court {
+  id: string;
+  number: number;
+  format: "MIXED" | "MENS" | "WOMENS";
+}
+
+interface Session {
+  id: string;
+  date: string;
+  endTime: string | null;
+  courts: Court[];
+  sessionPlayers: { id: string }[];
+}
+
+const formatLabel: Record<string, string> = {
+  MIXED: "Mixed",
+  MENS: "Men's",
+  WOMENS: "Women's",
+};
+
+const formatColor: Record<string, string> = {
+  MIXED: "bg-purple-900/50 text-purple-300",
+  MENS:  "bg-sky-900/50 text-sky-300",
+  WOMENS:"bg-pink-900/50 text-pink-300",
+};
+
+export default function HomePage() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [open, setOpen] = useState(false);
+
+  async function load() {
+    const res = await fetch("/api/sessions");
+    setSessions(await res.json());
+  }
+
+  async function deleteSession(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  useEffect(() => { load(); }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Sessions</h1>
+        <Button onClick={() => setOpen(true)} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+          + Add Session
+        </Button>
+      </div>
+
+      {sessions.length === 0 && (
+        <p className="text-zinc-500 text-center py-12">No sessions yet. Add your first one!</p>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {sessions.map((session) => (
+          <Link key={session.id} href={`/sessions/${session.id}`}>
+            <Card className="hover:border-zinc-600 transition-colors cursor-pointer bg-zinc-900 border-zinc-800">
+              <CardContent className="py-4 px-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold text-white">
+                      {format(new Date(session.date), "EEEE, MMMM d")}
+                    </p>
+                    <p className="text-sm text-zinc-400">
+                      {format(new Date(session.date), "h:mm a")}
+                      {session.endTime && ` – ${format(new Date(session.endTime), "h:mm a")}`}
+                      {" "}&middot; {session.sessionPlayers.length} players
+                    </p>
+                    <div className="flex gap-1 flex-wrap mt-1.5">
+                      {session.courts.map((court) => (
+                        <span
+                          key={court.id}
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[court.format]}`}
+                        >
+                          C{court.number} {formatLabel[court.format]}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => deleteSession(e, session.id)}
+                    className="shrink-0 text-zinc-600 hover:text-red-400 text-xl leading-none p-1"
+                    title="Delete session"
+                  >
+                    ×
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      <AddSessionDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        onCreated={() => { setOpen(false); load(); }}
+      />
     </div>
   );
 }

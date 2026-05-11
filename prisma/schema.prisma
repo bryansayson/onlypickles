@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  gender    Gender
+  createdAt DateTime @default(now())
+
+  sessionPlayers SessionPlayer[]
+  team1Game1     Game[]          @relation("Team1Player1")
+  team1Game2     Game[]          @relation("Team1Player2")
+  team2Game1     Game[]          @relation("Team2Player1")
+  team2Game2     Game[]          @relation("Team2Player2")
+  teamsAsPlayer1 Team[]          @relation("TeamPlayer1")
+  teamsAsPlayer2 Team[]          @relation("TeamPlayer2")
+}
+
+model Session {
+  id            String        @id @default(cuid())
+  date          DateTime
+  endTime       DateTime?
+  sessionFormat SessionFormat @default(ROTATING)
+  createdAt     DateTime      @default(now())
+
+  courts         Court[]
+  sessionPlayers SessionPlayer[]
+  teams          Team[]
+}
+
+model Team {
+  id        String @id @default(cuid())
+  sessionId String
+  player1Id String
+  player2Id String
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player1 Player  @relation("TeamPlayer1", fields: [player1Id], references: [id])
+  player2 Player  @relation("TeamPlayer2", fields: [player2Id], references: [id])
+
+  gamesAsTeam1 Game[] @relation("FixedTeam1")
+  gamesAsTeam2 Game[] @relation("FixedTeam2")
+
+  @@unique([sessionId, player1Id])
+  @@unique([sessionId, player2Id])
+}
+
+model Court {
+  id        String      @id @default(cuid())
+  sessionId String
+  number    Int
+  format    CourtFormat
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  games   Game[]
+}
+
+model SessionPlayer {
+  id        String  @id @default(cuid())
+  sessionId String
+  playerId  String
+  courtId   String?
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, playerId])
+}
+
+model Game {
+  id             String   @id @default(cuid())
+  courtId        String
+  roundNumber    Int
+  team1Player1Id String
+  team1Player2Id String
+  team2Player1Id String
+  team2Player2Id String
+  team1Id        String?
+  team2Id        String?
+  team1Score     Int?
+  team2Score     Int?
+  completed      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  court        Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  team1Player1 Player @relation("Team1Player1", fields: [team1Player1Id], references: [id])
+  team1Player2 Player @relation("Team1Player2", fields: [team1Player2Id], references: [id])
+  team2Player1 Player @relation("Team2Player1", fields: [team2Player1Id], references: [id])
+  team2Player2 Player @relation("Team2Player2", fields: [team2Player2Id], references: [id])
+  fixedTeam1   Team?  @relation("FixedTeam1", fields: [team1Id], references: [id])
+  fixedTeam2   Team?  @relation("FixedTeam2", fields: [team2Id], references: [id])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum CourtFormat {
+  MIXED
+  MENS
+  WOMENS
+}
+
+enum SessionFormat {
+  ROTATING
+  FIXED
+}
