@@ -718,13 +718,28 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     );
 
                 return (
-                  <div key={entry.name} className="rounded-xl overflow-hidden border border-zinc-800">
+                  <div key={entry.name} className={`rounded-xl overflow-hidden border ${
+                    i === 0 ? "border-yellow-500/40" :
+                    i === 1 ? "border-zinc-400/40" :
+                    i === 2 ? "border-orange-600/40" :
+                    "border-zinc-800"
+                  }`}>
                     {/* Summary row */}
                     <button
                       onClick={() => setExpandedEntry(isExpanded ? null : entry.name)}
-                      className="w-full flex items-center gap-3 px-4 py-3 bg-zinc-900 hover:bg-zinc-800 transition-colors text-left"
+                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800 transition-colors text-left ${
+                        i === 0 ? "bg-yellow-500/10" :
+                        i === 1 ? "bg-zinc-400/10" :
+                        i === 2 ? "bg-orange-600/10" :
+                        "bg-zinc-900"
+                      }`}
                     >
-                      <span className="text-lg font-bold text-zinc-600 w-6">{i + 1}</span>
+                      <span className={`text-lg font-black w-6 ${
+                        i === 0 ? "text-yellow-400" :
+                        i === 1 ? "text-zinc-300" :
+                        i === 2 ? "text-orange-500" :
+                        "text-zinc-600"
+                      }`}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</span>
                       <span className="font-semibold flex-1 text-white">{entry.name}</span>
                       <div className="flex gap-3 text-sm items-center">
                         <span className="font-semibold text-lime-400">{entry.wins}W</span>
