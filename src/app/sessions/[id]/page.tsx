@@ -175,8 +175,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     });
   }
 
+  const totalCompletedGames = games.filter((g) => g.completed).length;
+
   const leaderboard = (() => {
-    const stats: Record<string, { name: string; wins: number; losses: number; points: number; played: number }> = {};
+    const stats: Record<string, { name: string; wins: number; losses: number; pointDiff: number; played: number }> = {};
 
     if (session?.sessionFormat === "FIXED") {
       const teamName = (t: Team) => `${t.player1.name} & ${t.player2.name}`;
@@ -186,16 +188,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         const t1Won = g.team1Score > g.team2Score;
         if (!stats[g.team1Id]) {
           const team = session.teams.find((t) => t.id === g.team1Id);
-          stats[g.team1Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, points: 0, played: 0 };
+          stats[g.team1Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0 };
         }
         if (!stats[g.team2Id]) {
           const team = session.teams.find((t) => t.id === g.team2Id);
-          stats[g.team2Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, points: 0, played: 0 };
+          stats[g.team2Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0 };
         }
         if (t1Won) stats[g.team1Id].wins++; else stats[g.team1Id].losses++;
         if (!t1Won) stats[g.team2Id].wins++; else stats[g.team2Id].losses++;
-        stats[g.team1Id].points += g.team1Score;
-        stats[g.team2Id].points += g.team2Score;
+        stats[g.team1Id].pointDiff += g.team1Score - g.team2Score;
+        stats[g.team2Id].pointDiff += g.team2Score - g.team1Score;
         stats[g.team1Id].played++;
         stats[g.team2Id].played++;
       }
@@ -204,20 +206,20 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         if (!g.completed || g.team1Score === null || g.team2Score === null) continue;
         const t1Won = g.team1Score > g.team2Score;
         for (const p of [g.team1Player1, g.team1Player2]) {
-          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, points: 0, played: 0 };
+          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, pointDiff: 0, played: 0 };
           if (t1Won) stats[p.id].wins++; else stats[p.id].losses++;
-          stats[p.id].points += g.team1Score;
+          stats[p.id].pointDiff += g.team1Score - g.team2Score;
           stats[p.id].played++;
         }
         for (const p of [g.team2Player1, g.team2Player2]) {
-          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, points: 0, played: 0 };
+          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, pointDiff: 0, played: 0 };
           if (!t1Won) stats[p.id].wins++; else stats[p.id].losses++;
-          stats[p.id].points += g.team2Score;
+          stats[p.id].pointDiff += g.team2Score - g.team1Score;
           stats[p.id].played++;
         }
       }
     }
-    return Object.values(stats).sort((a, b) => b.wins - a.wins || b.points - a.points);
+    return Object.values(stats).sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
   })();
 
   const roundsMap = games.reduce<Record<number, Game[]>>((acc, g) => {
@@ -701,12 +703,14 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       <span className="font-semibold text-lime-400">{p.wins}W</span>
                       <span className="font-semibold text-red-400">{p.losses}L</span>
                       <span>
-                        <span className="font-semibold">{p.points}</span>
-                        <span className="text-zinc-500 text-xs"> pts</span>
+                        <span className={`font-semibold ${p.pointDiff >= 0 ? "text-lime-400" : "text-red-400"}`}>
+                          {p.pointDiff > 0 ? "+" : ""}{p.pointDiff}
+                        </span>
+                        <span className="text-zinc-500 text-xs"> diff</span>
                       </span>
                       <span>
                         <span className="font-semibold text-sky-400">{p.played}</span>
-                        <span className="text-zinc-500 text-xs"> played</span>
+                        <span className="text-zinc-500 text-xs">/{totalCompletedGames}</span>
                       </span>
                     </div>
                   </CardContent>
