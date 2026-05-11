@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { format, isToday, isFuture, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
@@ -34,6 +34,52 @@ const formatColor: Record<string, string> = {
   WOMENS:"bg-pink-900/50 text-pink-300",
 };
 
+function SessionCard({ session, isAdmin, onDelete }: {
+  session: Session;
+  isAdmin: boolean;
+  onDelete: (e: React.MouseEvent, id: string) => void;
+}) {
+  return (
+    <Link href={`/sessions/${session.id}`}>
+      <Card className="hover:border-zinc-600 transition-colors cursor-pointer bg-zinc-900 border-zinc-800">
+        <CardContent className="py-4 px-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-bold text-white">
+                {format(new Date(session.date), "EEEE, MMMM d")}
+              </p>
+              <p className="text-sm text-zinc-400">
+                {format(new Date(session.date), "h:mm a")}
+                {session.endTime && ` – ${format(new Date(session.endTime), "h:mm a")}`}
+                {" "}&middot; {session.sessionPlayers.length} players
+              </p>
+              <div className="flex gap-1 flex-wrap mt-1.5">
+                {session.courts.map((court) => (
+                  <span
+                    key={court.id}
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[court.format]}`}
+                  >
+                    C{court.number} {formatLabel[court.format]}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={(e) => onDelete(e, session.id)}
+                className="shrink-0 text-zinc-600 hover:text-red-400 text-xl leading-none p-1"
+                title="Delete session"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 export default function HomePage() {
   const { isAdmin } = useAdmin();
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -53,6 +99,16 @@ export default function HomePage() {
 
   useEffect(() => { load(); }, []);
 
+  const upcoming = sessions.filter((s) => {
+    const d = new Date(s.date);
+    return isToday(d) || isFuture(startOfDay(d));
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const past = sessions.filter((s) => {
+    const d = new Date(s.date);
+    return !isToday(d) && !isFuture(startOfDay(d));
+  });
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -68,47 +124,27 @@ export default function HomePage() {
         <p className="text-zinc-500 text-center py-12">No sessions yet. Add your first one!</p>
       )}
 
-      <div className="flex flex-col gap-3">
-        {sessions.map((session) => (
-          <Link key={session.id} href={`/sessions/${session.id}`}>
-            <Card className="hover:border-zinc-600 transition-colors cursor-pointer bg-zinc-900 border-zinc-800">
-              <CardContent className="py-4 px-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-bold text-white">
-                      {format(new Date(session.date), "EEEE, MMMM d")}
-                    </p>
-                    <p className="text-sm text-zinc-400">
-                      {format(new Date(session.date), "h:mm a")}
-                      {session.endTime && ` – ${format(new Date(session.endTime), "h:mm a")}`}
-                      {" "}&middot; {session.sessionPlayers.length} players
-                    </p>
-                    <div className="flex gap-1 flex-wrap mt-1.5">
-                      {session.courts.map((court) => (
-                        <span
-                          key={court.id}
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[court.format]}`}
-                        >
-                          C{court.number} {formatLabel[court.format]}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  {isAdmin && (
-                    <button
-                      onClick={(e) => deleteSession(e, session.id)}
-                      className="shrink-0 text-zinc-600 hover:text-red-400 text-xl leading-none p-1"
-                      title="Delete session"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      {upcoming.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Upcoming</h2>
+          <div className="flex flex-col gap-3">
+            {upcoming.map((session) => (
+              <SessionCard key={session.id} session={session} isAdmin={isAdmin} onDelete={deleteSession} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {past.length > 0 && (
+        <div>
+          <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Past</h2>
+          <div className="flex flex-col gap-3 opacity-60">
+            {past.map((session) => (
+              <SessionCard key={session.id} session={session} isAdmin={isAdmin} onDelete={deleteSession} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <AddSessionDialog
         open={open}
