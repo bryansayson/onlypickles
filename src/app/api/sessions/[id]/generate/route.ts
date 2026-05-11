@@ -6,6 +6,7 @@ import {
   generateFixedSchedule,
   roundsFromMinGamesFixed,
   RRTeam,
+  RROverride,
 } from "@/lib/roundRobin";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -18,6 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       courts: { orderBy: { number: "asc" } },
       sessionPlayers: { include: { player: true } },
       teams: { include: { player1: true, player2: true } },
+      playerOverrides: true,
     },
   });
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -124,7 +126,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ? roundsFromMinGames(players, courts, value)
         : value;
 
-    const schedule = generateSchedule(players, courts, numRounds);
+    const rrOverrides: RROverride[] = session.playerOverrides.map((o) => ({
+      player1Id: o.player1Id,
+      player2Id: o.player2Id,
+      type: o.type as "MUST_PARTNER" | "MUST_NOT_PARTNER",
+    }));
+
+    const schedule = generateSchedule(players, courts, numRounds, rrOverrides);
 
     const gameData = schedule.flatMap((round, roundIdx) =>
       round.map((game) => ({

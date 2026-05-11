@@ -12,6 +12,7 @@ import { GenerateDialog } from "@/components/GenerateDialog";
 import { AddCourtDialog } from "@/components/AddCourtDialog";
 import { EditDateDialog } from "@/components/EditDateDialog";
 import { CreateTeamDialog } from "@/components/CreateTeamDialog";
+import { AddOverrideDialog } from "@/components/AddOverrideDialog";
 import {
   Select,
   SelectContent,
@@ -44,6 +45,13 @@ interface Team {
   player2: Player;
 }
 
+interface PlayerOverride {
+  id: string;
+  player1: Player;
+  player2: Player;
+  type: "MUST_PARTNER" | "MUST_NOT_PARTNER";
+}
+
 interface Session {
   id: string;
   date: string;
@@ -52,6 +60,7 @@ interface Session {
   courts: Court[];
   sessionPlayers: SessionPlayer[];
   teams: Team[];
+  playerOverrides: PlayerOverride[];
 }
 
 interface Game {
@@ -94,6 +103,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [scores, setScores] = useState<Record<string, { t1: string; t2: string }>>({});
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
+  const [addOverrideOpen, setAddOverrideOpen] = useState(false);
 
   async function loadSession() {
     const res = await fetch(`/api/sessions/${id}`);
@@ -140,6 +150,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       body: JSON.stringify({ date: start.toISOString(), endTime: end?.toISOString() ?? null }),
     });
     setEditDateOpen(false);
+    loadSession();
+  }
+
+  async function deleteOverride(overrideId: string) {
+    await fetch(`/api/overrides/${overrideId}`, { method: "DELETE" });
     loadSession();
   }
 
@@ -520,6 +535,54 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          )}
+
+          {/* Overrides */}
+          {session.sessionPlayers.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-zinc-300">Player Overrides</span>
+                {isAdmin && (
+                  <button
+                    onClick={() => setAddOverrideOpen(true)}
+                    className="text-xs text-lime-400 hover:text-lime-300 font-medium"
+                  >
+                    + Add
+                  </button>
+                )}
+              </div>
+              {session.playerOverrides.length === 0 ? (
+                <p className="text-xs text-zinc-600 italic">No overrides set.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {session.playerOverrides.map((ov) => (
+                    <div
+                      key={ov.id}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
+                        ov.type === "MUST_PARTNER"
+                          ? "border-lime-800 bg-lime-950/50"
+                          : "border-red-900 bg-red-950/50"
+                      }`}
+                    >
+                      <span className={`text-xs font-bold shrink-0 ${ov.type === "MUST_PARTNER" ? "text-lime-400" : "text-red-400"}`}>
+                        {ov.type === "MUST_PARTNER" ? "WITH" : "NOT"}
+                      </span>
+                      <span className="text-white flex-1">
+                        {ov.player1.name} <span className="text-zinc-500">&</span> {ov.player2.name}
+                      </span>
+                      {isAdmin && (
+                        <button
+                          onClick={() => deleteOverride(ov.id)}
+                          className="text-zinc-600 hover:text-red-400 text-base leading-none shrink-0"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -919,6 +982,14 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           onSaved={updateDate}
         />
       )}
+
+      <AddOverrideDialog
+        open={addOverrideOpen}
+        onClose={() => setAddOverrideOpen(false)}
+        sessionId={id}
+        players={session?.sessionPlayers.map((sp) => sp.player) ?? []}
+        onCreated={() => { setAddOverrideOpen(false); loadSession(); }}
+      />
     </div>
   );
 }

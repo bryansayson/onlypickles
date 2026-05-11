@@ -19,6 +19,12 @@ export interface RRCourt {
   format: "MIXED" | "MENS" | "WOMENS";
 }
 
+export interface RROverride {
+  player1Id: string;
+  player2Id: string;
+  type: "MUST_PARTNER" | "MUST_NOT_PARTNER";
+}
+
 interface Game {
   courtId: string;
   team1: [string, string];
@@ -34,7 +40,8 @@ const MAX_CANDIDATES = 20;
 export function generateSchedule(
   players: RRPlayer[],
   courts: RRCourt[],
-  numRounds: number
+  numRounds: number,
+  overrides: RROverride[] = []
 ): Round[] {
   const genders = Object.fromEntries(players.map((p) => [p.id, p.gender]));
 
@@ -57,18 +64,30 @@ export function generateSchedule(
   // Lower score = better. Partner repeats penalised more heavily than opponent
   // repeats because partners directly determine the "unique people" experience.
   // Sit-out count subtracts from the score to favour underplayed players.
+  // Overrides add a large penalty when violated so the search naturally avoids them.
   function gameScore(
     t1p1: string, t1p2: string,
     t2p1: string, t2p2: string
   ): number {
-    return (
+    let score =
       get(partnerCount, t1p1, t1p2) * 6 +
       get(partnerCount, t2p1, t2p2) * 6 +
       get(opponentCount, t1p1, t2p1) * 2 +
       get(opponentCount, t1p1, t2p2) * 2 +
       get(opponentCount, t1p2, t2p1) * 2 +
-      get(opponentCount, t1p2, t2p2) * 2
-    );
+      get(opponentCount, t1p2, t2p2) * 2;
+
+    for (const ov of overrides) {
+      const { player1Id: a, player2Id: b, type } = ov;
+      const t1Together = (t1p1 === a && t1p2 === b) || (t1p1 === b && t1p2 === a);
+      const t2Together = (t2p1 === a && t2p2 === b) || (t2p1 === b && t2p2 === a);
+      const bothInGame = [t1p1, t1p2, t2p1, t2p2].includes(a) && [t1p1, t1p2, t2p1, t2p2].includes(b);
+
+      if (type === "MUST_NOT_PARTNER" && (t1Together || t2Together)) score += 10000;
+      if (type === "MUST_PARTNER" && bothInGame && !t1Together && !t2Together) score += 10000;
+    }
+
+    return score;
   }
 
   function sitBonus(ids: string[]): number {

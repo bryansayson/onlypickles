@@ -18,8 +18,10 @@ model Player {
   team1Game2     Game[]          @relation("Team1Player2")
   team2Game1     Game[]          @relation("Team2Player1")
   team2Game2     Game[]          @relation("Team2Player2")
-  teamsAsPlayer1 Team[]          @relation("TeamPlayer1")
-  teamsAsPlayer2 Team[]          @relation("TeamPlayer2")
+  teamsAsPlayer1   Team[]           @relation("TeamPlayer1")
+  teamsAsPlayer2   Team[]           @relation("TeamPlayer2")
+  overridesAsP1    PlayerOverride[] @relation("OverridePlayer1")
+  overridesAsP2    PlayerOverride[] @relation("OverridePlayer2")
 }
 
 model Session {
@@ -29,9 +31,24 @@ model Session {
   sessionFormat SessionFormat @default(ROTATING)
   createdAt     DateTime      @default(now())
 
-  courts         Court[]
-  sessionPlayers SessionPlayer[]
-  teams          Team[]
+  courts          Court[]
+  sessionPlayers  SessionPlayer[]
+  teams           Team[]
+  playerOverrides PlayerOverride[]
+}
+
+model PlayerOverride {
+  id        String       @id @default(cuid())
+  sessionId String
+  player1Id String
+  player2Id String
+  type      OverrideType
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player1 Player  @relation("OverridePlayer1", fields: [player1Id], references: [id])
+  player2 Player  @relation("OverridePlayer2", fields: [player2Id], references: [id])
+
+  @@unique([sessionId, player1Id, player2Id])
 }
 
 model Team {
@@ -111,4 +128,9 @@ enum CourtFormat {
 enum SessionFormat {
   ROTATING
   FIXED
+}
+
+enum OverrideType {
+  MUST_PARTNER
+  MUST_NOT_PARTNER
 }

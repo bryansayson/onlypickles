@@ -9,6 +9,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       courts: { orderBy: { number: "asc" } },
       sessionPlayers: { include: { player: true } },
       teams: { include: { player1: true, player2: true } },
+      playerOverrides: { include: { player1: true, player2: true } },
     },
   });
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
