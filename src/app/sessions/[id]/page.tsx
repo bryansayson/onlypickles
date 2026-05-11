@@ -218,11 +218,34 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     return Object.values(stats).sort((a, b) => b.wins - a.wins || b.points - a.points);
   })();
 
-  const rounds = games.reduce<Record<number, Game[]>>((acc, g) => {
+  const roundsMap = games.reduce<Record<number, Game[]>>((acc, g) => {
     if (!acc[g.roundNumber]) acc[g.roundNumber] = [];
     acc[g.roundNumber].push(g);
     return acc;
   }, {});
+
+  // Sort: incomplete rounds first (ascending), completed rounds at bottom (ascending)
+  const rounds = Object.entries(roundsMap).sort(([aNum, aGames], [bNum, bGames]) => {
+    const aComplete = aGames.every((g) => g.completed);
+    const bComplete = bGames.every((g) => g.completed);
+    if (aComplete !== bComplete) return aComplete ? 1 : -1;
+    return Number(aNum) - Number(bNum);
+  });
+
+  function editRound(roundGames: Game[]) {
+    setScores((prev) => {
+      const next = { ...prev };
+      for (const g of roundGames) {
+        if (g.completed) {
+          next[g.id] = {
+            t1: String(g.team1Score ?? ""),
+            t2: String(g.team2Score ?? ""),
+          };
+        }
+      }
+      return next;
+    });
+  }
 
   function byesForRound(roundGames: Game[]): Player[] {
     const playing = new Set(
@@ -479,18 +502,28 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {Object.entries(rounds).map(([roundNum, roundGames]) => {
+              {rounds.map(([roundNum, roundGames]) => {
                 const byes = byesForRound(roundGames);
+                const isRoundComplete = roundGames.every((g) => g.completed);
+                const isRoundEditing = roundGames.some((g) => !!scores[g.id]);
                 return (
                   <div
                     key={roundNum}
-                    className="rounded-xl p-3 bg-zinc-900"
+                    className={`rounded-xl p-3 transition-opacity ${isRoundComplete ? "opacity-50" : "opacity-100"} bg-zinc-900`}
                   >
                     {/* Round header */}
-                    <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 px-2 py-0.5 bg-zinc-800 rounded-full">
                         Round {roundNum}
                       </span>
+                      {isRoundComplete && !isRoundEditing && (
+                        <button
+                          onClick={() => editRound(roundGames)}
+                          className="text-xs text-zinc-500 hover:text-zinc-200 underline transition-colors"
+                        >
+                          Edit
+                        </button>
+                      )}
                     </div>
 
                     {/* Games */}
@@ -508,22 +541,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[game.court.format]}`}>
                                 Court {game.court.number}
                               </span>
-                              {game.completed && !isEditing && (
-                                <button
-                                  className="text-xs text-zinc-500 hover:text-zinc-200 underline"
-                                  onClick={() =>
-                                    setScores((prev) => ({
-                                      ...prev,
-                                      [game.id]: {
-                                        t1: String(game.team1Score ?? ""),
-                                        t2: String(game.team2Score ?? ""),
-                                      },
-                                    }))
-                                  }
-                                >
-                                  Edit score
-                                </button>
-                              )}
                             </div>
 
                             <div className="flex flex-col gap-1.5">

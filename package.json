@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postprisma:generate": "node -e \"require('fs').writeFileSync('src/generated/prisma/index.ts', 'export * from \\\"./client\\\";\\nexport * from \\\"./enums\\\";\\nexport * from \\\"./models\\\";\\n')\"",
-    "prisma:generate": "prisma generate && npm run postprisma:generate"
+    "generate": "prisma generate",
+    "postgenerate": "node -e \"require('fs').writeFileSync('src/generated/prisma/index.ts', 'export * from \\\"./client\\\";\\nexport * from \\\"./enums\\\";\\nexport * from \\\"./models\\\";\\n')\""
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
