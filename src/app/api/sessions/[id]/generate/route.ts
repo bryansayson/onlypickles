@@ -31,7 +31,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Add at least one court first." }, { status: 400 });
   }
 
-  await prisma.game.deleteMany({ where: { court: { sessionId } } });
+  // Relation filters on deleteMany may require transactions — use direct courtId IN instead
+  const courtIds = session.courts.map((c) => c.id);
+  if (courtIds.length > 0) {
+    await prisma.game.deleteMany({ where: { courtId: { in: courtIds } } });
+  }
 
   // ── Fixed partners ──────────────────────────────────────────────────────────
   if (session.sessionFormat === "FIXED") {
@@ -76,7 +80,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }))
     );
 
-    await prisma.game.createMany({ data: gameData });
+    for (const game of gameData) await prisma.game.create({ data: game });
   } else {
     // ── Rotating partners ─────────────────────────────────────────────────────
     const players = session.sessionPlayers.map((sp) => ({
@@ -133,7 +137,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }))
     );
 
-    await prisma.game.createMany({ data: gameData });
+    for (const game of gameData) await prisma.game.create({ data: game });
   }
 
   const games = await prisma.game.findMany({
