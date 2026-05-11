@@ -8,13 +8,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "playerIds array required" }, { status: 400 });
   }
 
-  // Upsert — add players not already in session
+  // HTTP adapter doesn't support transactions, so upsert is unavailable.
+  // Try to create each; silently skip if already exists (P2002 = unique violation).
   for (const playerId of playerIds as string[]) {
-    await prisma.sessionPlayer.upsert({
-      where: { sessionId_playerId: { sessionId, playerId } },
-      create: { sessionId, playerId },
-      update: {},
-    });
+    try {
+      await prisma.sessionPlayer.create({ data: { sessionId, playerId } });
+    } catch (e: unknown) {
+      if ((e as { code?: string })?.code !== "P2002") throw e;
+    }
   }
 
   return NextResponse.json({ ok: true });
