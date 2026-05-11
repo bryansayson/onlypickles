@@ -31,8 +31,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "One or both players are already on a team" }, { status: 400 });
   }
 
-  const team = await prisma.team.create({
+  const created = await prisma.team.create({
     data: { sessionId, player1Id, player2Id },
+  });
+  const team = await prisma.team.findUnique({
+    where: { id: created.id },
     include: { player1: true, player2: true },
   });
   return NextResponse.json(team, { status: 201 });

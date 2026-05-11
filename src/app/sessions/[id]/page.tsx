@@ -699,13 +699,28 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         <TabsContent value="leaderboard">
           {leaderboard.length === 0 ? (
             <p className="text-zinc-400 text-center py-12">No scores recorded yet.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {leaderboard.map((entry, i) => {
-                const isExpanded = expandedEntry === entry.name;
+          ) : (() => {
+            const hasMens = session.courts.some((c) => c.format === "MENS");
+            const hasWomens = session.courts.some((c) => c.format === "WOMENS");
+            const hasMixed = session.courts.some((c) => c.format === "MIXED");
+            const showSplit = hasMens && hasWomens && !hasMixed;
 
-                // Find all games this player/team was in
-                const entryGames = session.sessionFormat === "FIXED"
+            function getEntryGender(name: string): "MALE" | "FEMALE" {
+              if (session!.sessionFormat === "FIXED") {
+                const team = session!.teams.find((t) => `${t.player1.name} & ${t.player2.name}` === name);
+                return (team?.player1.gender === "MALE" && team?.player2.gender === "MALE") ? "MALE" : "FEMALE";
+              }
+              const sp = session!.sessionPlayers.find((sp) => sp.player.name === name);
+              return sp?.player.gender === "MALE" ? "MALE" : "FEMALE";
+            }
+
+            const maleEntries = showSplit ? leaderboard.filter((e) => getEntryGender(e.name) === "MALE") : [];
+            const femaleEntries = showSplit ? leaderboard.filter((e) => getEntryGender(e.name) === "FEMALE") : [];
+
+            const renderEntry = (entry: typeof leaderboard[0], i: number) => {
+              const isExpanded = expandedEntry === entry.name;
+              // Find all games this player/team was in
+              const entryGames = session.sessionFormat === "FIXED"
                   ? games.filter((g) => {
                       const t = session.teams.find((t) =>
                         `${t.player1.name} & ${t.player2.name}` === entry.name
@@ -825,9 +840,39 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     )}
                   </div>
                 );
-              })}
-            </div>
-          )}
+            };
+
+            if (showSplit) {
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="w-2 h-2 rounded-full bg-sky-400" />
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Males</span>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {maleEntries.map((entry, i) => renderEntry(entry, i))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="w-2 h-2 rounded-full bg-pink-400" />
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Females</span>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {femaleEntries.map((entry, i) => renderEntry(entry, i))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex flex-col gap-2">
+                {leaderboard.map((entry, i) => renderEntry(entry, i))}
+              </div>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 
