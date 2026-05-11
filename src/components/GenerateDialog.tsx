@@ -82,7 +82,7 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, onGene
             </div>
           ) : (
             <div>
-              <Label htmlFor="value">Minimum games per player</Label>
+              <Label htmlFor="value">Games per player</Label>
               <Input
                 id="value"
                 type="number"
@@ -92,9 +92,6 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, onGene
                 className="mt-1"
                 required
               />
-              <p className="text-xs text-gray-400 mt-1">
-                Rounds are calculated so everyone plays at least this many games.
-              </p>
             </div>
           )}
 

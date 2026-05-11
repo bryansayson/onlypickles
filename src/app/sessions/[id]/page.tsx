@@ -226,12 +226,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         }
       }
     }
-    const entries = Object.values(stats);
-    // Normalise the denominator: use the minimum scheduled count across all
-    // players so everyone shows X/4 when 4 games were requested, not X/5 or X/6
-    const minScheduled = entries.length > 0 ? Math.min(...entries.map((e) => e.scheduled)) : 0;
-    for (const e of entries) e.scheduled = minScheduled;
-    return entries.sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
+    return Object.values(stats).sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
   })();
 
   const roundsMap = games.reduce<Record<number, Game[]>>((acc, g) => {
