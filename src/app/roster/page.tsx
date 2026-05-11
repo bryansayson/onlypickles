@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAdmin } from "@/components/AdminProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ interface Player {
 }
 
 export default function RosterPage() {
+  const { isAdmin } = useAdmin();
   const [players, setPlayers] = useState<Player[]>([]);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -63,9 +65,11 @@ export default function RosterPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Roster</h1>
-        <Button onClick={() => setOpen(true)} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-          + Add Player
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setOpen(true)} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+            + Add Player
+          </Button>
+        )}
       </div>
 
       {players.length === 0 && (
@@ -90,17 +94,19 @@ export default function RosterPage() {
                 {player.gender === "MALE" ? "M" : "F"}
               </span>
             </div>
-            <button
-              onClick={() => handleDelete(player.id)}
-              className="text-zinc-600 hover:text-red-400 text-sm transition-colors"
-            >
-              Remove
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => handleDelete(player.id)}
+                className="text-zinc-600 hover:text-red-400 text-sm transition-colors"
+              >
+                Remove
+              </button>
+            )}
           </div>
         ))}
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={isAdmin && open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Add Player</DialogTitle>

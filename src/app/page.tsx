@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { AddSessionDialog } from "@/components/AddSessionDialog";
+import { useAdmin } from "@/components/AdminProvider";
 
 interface Court {
   id: string;
@@ -34,6 +35,7 @@ const formatColor: Record<string, string> = {
 };
 
 export default function HomePage() {
+  const { isAdmin } = useAdmin();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -55,9 +57,11 @@ export default function HomePage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-white">Sessions</h1>
-        <Button onClick={() => setOpen(true)} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-          + Add Session
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setOpen(true)} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+            + Add Session
+          </Button>
+        )}
       </div>
 
       {sessions.length === 0 && (
@@ -90,13 +94,15 @@ export default function HomePage() {
                       ))}
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => deleteSession(e, session.id)}
-                    className="shrink-0 text-zinc-600 hover:text-red-400 text-xl leading-none p-1"
-                    title="Delete session"
-                  >
-                    ×
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => deleteSession(e, session.id)}
+                      className="shrink-0 text-zinc-600 hover:text-red-400 text-xl leading-none p-1"
+                      title="Delete session"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>

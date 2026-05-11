@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { useAdmin } from "@/components/AdminProvider";
 import { AddPlayersSheet } from "@/components/AddPlayersSheet";
 import { GenerateDialog } from "@/components/GenerateDialog";
 import { AddCourtDialog } from "@/components/AddCourtDialog";
@@ -83,6 +84,7 @@ const formatColor: Record<string, string> = {
 
 export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { isAdmin } = useAdmin();
   const [session, setSession] = useState<Session | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
@@ -275,12 +277,14 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             {session.sessionFormat === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
           </span>
         </div>
-        <button
-          onClick={() => setEditDateOpen(true)}
-          className="text-xs text-zinc-500 hover:text-zinc-200 underline mt-1"
-        >
-          Edit
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setEditDateOpen(true)}
+            className="text-xs text-zinc-500 hover:text-zinc-200 underline mt-1"
+          >
+            Edit
+          </button>
+        )}
       </div>
 
       <Tabs defaultValue="players">
@@ -298,9 +302,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             <>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
-                <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-                  + Add Players
-                </Button>
+                {isAdmin && (
+                  <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+                    + Add Players
+                  </Button>
+                )}
               </div>
               {session.sessionPlayers.length === 0 ? (
                 <p className="text-zinc-500 text-center py-10 text-sm">No players yet.</p>
@@ -327,10 +333,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                 isMale ? "border-sky-900 bg-sky-950" : "border-pink-900 bg-pink-950"
                               }`}
                             >
-                              <button
-                                onClick={() => removePlayer(sp.playerId)}
-                                className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
-                              >×</button>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => removePlayer(sp.playerId)}
+                                  className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
+                                >×</button>
+                              )}
                               <span className="text-xs font-medium leading-tight break-words w-full pt-1">{sp.player.name}</span>
                             </div>
                           ))}
@@ -339,6 +347,14 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     );
                   })}
                 </div>
+              )}
+              {isAdmin && (
+                <Button
+                  onClick={() => setGenerateOpen(true)}
+                  className="w-full mt-5 bg-lime-500 hover:bg-lime-400 text-black font-bold"
+                >
+                  Generate Schedule
+                </Button>
               )}
             </>
           )}
@@ -359,17 +375,21 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 {/* Add players */}
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
-                  <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-                    + Add Players
-                  </Button>
+                  {isAdmin && (
+                    <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+                      + Add Players
+                    </Button>
+                  )}
                 </div>
 
                 {/* Teams */}
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-zinc-200">Teams ({session.teams.length})</span>
-                  <Button onClick={() => setCreateTeamOpen(true)} size="sm" variant="outline" disabled={unteamed.length < 2}>
-                    + Create Team
-                  </Button>
+                  {isAdmin && (
+                    <Button onClick={() => setCreateTeamOpen(true)} size="sm" variant="outline" disabled={unteamed.length < 2}>
+                      + Create Team
+                    </Button>
+                  )}
                 </div>
 
                 {session.teams.length === 0 ? (
@@ -387,7 +407,9 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             <span className={`w-2 h-2 rounded-full shrink-0 ${team.player2.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"}`} />
                             <span className="text-sm font-medium">{team.player2.name}</span>
                           </div>
-                          <button onClick={() => deleteTeam(team.id)} className="text-zinc-600 hover:text-red-400 text-base">×</button>
+                          {isAdmin && (
+                            <button onClick={() => deleteTeam(team.id)} className="text-zinc-600 hover:text-red-400 text-base">×</button>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -403,13 +425,24 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         const isMale = p.gender === "MALE";
                         return (
                           <div key={p.id} className={`relative rounded-lg border px-2 py-2.5 flex flex-col items-center gap-1 text-center ${isMale ? "border-sky-900 bg-sky-950" : "border-pink-900 bg-pink-950"}`}>
-                            <button onClick={() => removePlayer(p.id)} className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none">×</button>
+                            {isAdmin && (
+                              <button onClick={() => removePlayer(p.id)} className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none">×</button>
+                            )}
                             <span className="text-xs font-medium leading-tight break-words w-full pt-1">{p.name}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
+                )}
+
+                {isAdmin && (
+                  <Button
+                    onClick={() => setGenerateOpen(true)}
+                    className="w-full mt-5 bg-lime-500 hover:bg-lime-400 text-black font-bold"
+                  >
+                    Generate Schedule
+                  </Button>
                 )}
 
                 <CreateTeamDialog
@@ -429,7 +462,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         <TabsContent value="courts">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-zinc-400">{session.courts.length} court{session.courts.length !== 1 ? "s" : ""}</span>
-            {session.courts.length < 4 && (
+            {isAdmin && session.courts.length < 4 && (
               <Button
                 onClick={() => setAddCourtOpen(true)}
                 size="sm"
@@ -466,12 +499,14 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                           <SelectItem value="WOMENS">Women&apos;s</SelectItem>
                         </SelectContent>
                       </Select>
-                      <button
-                        onClick={() => removeCourt(court.id)}
-                        className="text-zinc-600 hover:text-red-400 text-base leading-none"
-                      >
-                        ×
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => removeCourt(court.id)}
+                          className="text-zinc-600 hover:text-red-400 text-base leading-none"
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -479,7 +514,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             </div>
           )}
 
-          {session.sessionPlayers.length > 0 && session.courts.length > 0 && (
+          {isAdmin && session.sessionPlayers.length > 0 && session.courts.length > 0 && (
             <Button
               onClick={() => setGenerateOpen(true)}
               className="w-full mt-5 bg-lime-500 hover:bg-lime-400 text-black font-bold"
@@ -494,7 +529,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           {games.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-zinc-400 mb-3">No schedule yet.</p>
-              {session.sessionPlayers.length > 0 && session.courts.length > 0 && (
+              {isAdmin && session.sessionPlayers.length > 0 && session.courts.length > 0 && (
                 <Button onClick={() => setGenerateOpen(true)} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
                   Generate Schedule
                 </Button>
@@ -516,7 +551,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 px-2 py-0.5 bg-zinc-800 rounded-full">
                         Round {roundNum}
                       </span>
-                      {isRoundComplete && !isRoundEditing && (
+                      {isAdmin && isRoundComplete && !isRoundEditing && (
                         <button
                           onClick={() => editRound(roundGames)}
                           className="text-xs text-zinc-500 hover:text-zinc-200 underline transition-colors"
@@ -531,7 +566,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       {roundGames.map((game) => {
                         const sc = scores[game.id];
                         const isEditing = !!sc;
-                        const showInputs = isEditing || !game.completed;
+                        const showInputs = isAdmin && (isEditing || !game.completed);
                         return (
                           <div
                             key={game.id}
@@ -560,11 +595,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                       }))
                                     }
                                   />
-                                ) : (
+                                ) : game.completed ? (
                                   <span className={`text-lg font-bold tabular-nums w-14 text-right shrink-0 ${game.team1Score! > game.team2Score! ? "text-lime-400" : "text-zinc-500"}`}>
                                     {game.team1Score}
                                   </span>
-                                )}
+                                ) : null}
                               </div>
 
                               <div className="flex items-center gap-2">
@@ -589,11 +624,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                       }))
                                     }
                                   />
-                                ) : (
+                                ) : game.completed ? (
                                   <span className={`text-lg font-bold tabular-nums w-14 text-right shrink-0 ${game.team2Score! > game.team1Score! ? "text-lime-400" : "text-zinc-500"}`}>
                                     {game.team2Score}
                                   </span>
-                                )}
+                                ) : null}
                               </div>
                             </div>
 
