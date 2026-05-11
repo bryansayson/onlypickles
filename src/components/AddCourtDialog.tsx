@@ -13,8 +13,8 @@ type CourtFormat = "MIXED" | "MENS" | "WOMENS";
 
 const options: { value: CourtFormat; label: string; description: string; color: string }[] = [
   { value: "MIXED", label: "Mixed", description: "Open to all genders", color: "border-purple-300 bg-purple-50 text-purple-700" },
-  { value: "MENS", label: "Men's", description: "Male players only", color: "border-blue-300 bg-blue-50 text-blue-700" },
-  { value: "WOMENS", label: "Women's", description: "Female players only", color: "border-pink-300 bg-pink-50 text-pink-700" },
+  { value: "MENS", label: "Men's", description: "Men only", color: "border-blue-300 bg-blue-50 text-blue-700" },
+  { value: "WOMENS", label: "Women's", description: "Women only", color: "border-pink-300 bg-pink-50 text-pink-700" },
 ];
 
 interface Props {

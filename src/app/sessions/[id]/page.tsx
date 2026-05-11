@@ -331,7 +331,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       <div key={gender}>
                         <div className="flex items-center gap-2 mb-2">
                           <span className={`w-2 h-2 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
-                          <span className="text-sm font-semibold text-zinc-200">{isMale ? "Males" : "Females"}</span>
+                          <span className="text-sm font-semibold text-zinc-200">{isMale ? "Men" : "Women"}</span>
                           <span className="text-xs text-zinc-500">{group.length}</span>
                         </div>
                         <div className="grid grid-cols-4 gap-2">
@@ -714,9 +714,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               return sp?.player.gender === "MALE" ? "MALE" : "FEMALE";
             }
 
-            const maleEntries = showSplit ? leaderboard.filter((e) => getEntryGender(e.name) === "MALE") : [];
-            const femaleEntries = showSplit ? leaderboard.filter((e) => getEntryGender(e.name) === "FEMALE") : [];
-
             const renderEntry = (entry: typeof leaderboard[0], i: number) => {
               const isExpanded = expandedEntry === entry.name;
               // Find all games this player/team was in
@@ -852,26 +849,32 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             };
 
             if (showSplit) {
+              const maleEntries = leaderboard.filter((e) => getEntryGender(e.name) === "MALE");
+              const femaleEntries = leaderboard.filter((e) => getEntryGender(e.name) === "FEMALE");
               return (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="w-2 h-2 rounded-full bg-sky-400" />
-                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Males</span>
+                <div className="flex flex-col gap-6">
+                  {maleEntries.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-sky-400" />
+                        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Men</span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {maleEntries.map((entry, i) => renderEntry(entry, i))}
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      {maleEntries.map((entry, i) => renderEntry(entry, i))}
+                  )}
+                  {femaleEntries.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="w-2 h-2 rounded-full bg-pink-400" />
+                        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Women</span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {femaleEntries.map((entry, i) => renderEntry(entry, i))}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="w-2 h-2 rounded-full bg-pink-400" />
-                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Females</span>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {femaleEntries.map((entry, i) => renderEntry(entry, i))}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             }
