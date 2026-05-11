@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Gender, CourtFormat } from "@/generated/prisma";
+import { Gender, CourtFormat } from "@/generated/prisma/enums";
 
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
