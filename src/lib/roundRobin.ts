@@ -311,8 +311,7 @@ export function roundsFromMinGamesFixed(
   const teamsPerRound = Math.min(teams.length, courts.length * 2);
   const rate = teams.length > 0 ? teamsPerRound / teams.length : 0;
   if (rate <= 0) return minGames;
-  const buffer = rate < 1 ? 1 : 0;
-  return Math.ceil(minGames / rate) + buffer;
+  return Math.ceil(minGames / rate);
 }
 
 export function roundsFromMinGames(
@@ -339,8 +338,5 @@ export function roundsFromMinGames(
   const minRate = rates.length > 0 ? Math.min(...rates) : 0;
   if (minRate <= 0) return minGames;
 
-  // Only add the +1 buffer when players sit out (rate < 1). When everyone
-  // plays every round (rate = 1), ceil already gives the exact target.
-  const buffer = minRate < 1 ? 1 : 0;
-  return Math.ceil(minGames / minRate) + buffer;
+  return Math.ceil(minGames / minRate);
 }
