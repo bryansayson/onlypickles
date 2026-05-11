@@ -794,36 +794,45 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                               const theirTeam = isTeam1 ? theirTeamNames : myTeamNames;
                               const won = myScore !== null && theirScore !== null && myScore > theirScore;
 
+                              const rowBg = !g.completed
+                                ? ""
+                                : won ? "bg-lime-950/60" : "bg-red-950/60";
+
                               return (
-                                <div key={g.id} className="px-4 py-2.5">
+                                <div key={g.id} className={`px-4 py-2.5 ${rowBg}`}>
                                   <div className="flex items-center gap-2 mb-1.5">
                                     <span className="text-xs text-zinc-500">Rd {g.roundNumber}</span>
                                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${formatColor[g.court.format]}`}>
                                       Court {g.court.number}
                                     </span>
+                                    {g.completed && (
+                                      <span className={`text-xs font-bold ml-auto ${won ? "text-lime-400" : "text-red-400"}`}>
+                                        {won ? "W" : "L"}
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="flex flex-col gap-1">
                                     <div className="flex items-center justify-between gap-2">
-                                      <span className={`text-sm font-semibold text-lime-400`}>
+                                      <span className="text-sm font-semibold text-white">
                                         {myTeam.split(" & ").map((name, ni) => (
                                           <span key={ni}>
                                             {ni > 0 && <span className="text-zinc-500"> & </span>}
-                                            <span className={name === entry.name ? "text-lime-300 underline underline-offset-2" : "text-lime-400"}>
+                                            <span className={name === entry.name ? "underline underline-offset-2" : ""}>
                                               {name}
                                             </span>
                                           </span>
                                         ))}
                                       </span>
                                       {g.completed && myScore !== null && (
-                                        <span className={`text-sm font-bold tabular-nums ${won ? "text-lime-400" : "text-zinc-400"}`}>
+                                        <span className={`text-sm font-bold tabular-nums ${won ? "text-lime-400" : "text-red-400"}`}>
                                           {myScore}
                                         </span>
                                       )}
                                     </div>
                                     <div className="flex items-center justify-between gap-2">
-                                      <span className="text-sm text-zinc-400">{theirTeam}</span>
+                                      <span className="text-sm text-zinc-500">{theirTeam}</span>
                                       {g.completed && theirScore !== null && (
-                                        <span className={`text-sm font-bold tabular-nums ${!won ? "text-lime-400" : "text-zinc-500"}`}>
+                                        <span className="text-sm font-bold tabular-nums text-zinc-500">
                                           {theirScore}
                                         </span>
                                       )}

@@ -62,6 +62,7 @@ export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onS
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 className="mt-1"
+                style={{ colorScheme: "dark" }}
               />
             </div>
             <div className="flex-1">
@@ -72,6 +73,7 @@ export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onS
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 className="mt-1"
+                style={{ colorScheme: "dark" }}
               />
             </div>
           </div>
