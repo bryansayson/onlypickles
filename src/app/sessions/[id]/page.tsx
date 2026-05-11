@@ -544,7 +544,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 return (
                   <div
                     key={roundNum}
-                    className={`rounded-xl p-3 transition-opacity ${isRoundComplete ? "opacity-50" : "opacity-100"} bg-zinc-900`}
+                    className={`rounded-xl p-3 transition-opacity ${isRoundComplete ? "opacity-50" : "opacity-100"} bg-zinc-800`}
                   >
                     {/* Round header */}
                     <div className="flex items-center justify-between mb-3">
@@ -561,16 +561,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       )}
                     </div>
 
-                    {/* Games */}
-                    <div className="flex flex-col gap-2">
-                      {roundGames.map((game) => {
+                    {/* Games — sorted by court number, 2 per row */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {[...roundGames].sort((a, b) => a.court.number - b.court.number).map((game) => {
                         const sc = scores[game.id];
                         const isEditing = !!sc;
                         const showInputs = isAdmin && (isEditing || !game.completed);
                         return (
                           <div
                             key={game.id}
-                            className="bg-zinc-900 rounded-lg border border-zinc-800 px-3 py-2.5 shadow-sm"
+                            className="bg-zinc-900 rounded-lg border border-zinc-700 px-3 py-2.5 min-w-0"
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[game.court.format]}`}>
