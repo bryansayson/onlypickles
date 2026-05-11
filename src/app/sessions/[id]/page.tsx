@@ -93,6 +93,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [editDateOpen, setEditDateOpen] = useState(false);
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [scores, setScores] = useState<Record<string, { t1: string; t2: string }>>({});
+  const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
 
   async function loadSession() {
     const res = await fetch(`/api/sessions/${id}`);
@@ -175,25 +176,26 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     });
   }
 
-  const totalCompletedGames = games.filter((g) => g.completed).length;
-
   const leaderboard = (() => {
-    const stats: Record<string, { name: string; wins: number; losses: number; pointDiff: number; played: number }> = {};
+    const stats: Record<string, { name: string; wins: number; losses: number; pointDiff: number; played: number; scheduled: number }> = {};
 
     if (session?.sessionFormat === "FIXED") {
       const teamName = (t: Team) => `${t.player1.name} & ${t.player2.name}`;
       for (const g of games) {
-        if (!g.completed || g.team1Score === null || g.team2Score === null) continue;
         if (!g.team1Id || !g.team2Id) continue;
-        const t1Won = g.team1Score > g.team2Score;
+        // Initialise from any game (scheduled or played)
         if (!stats[g.team1Id]) {
           const team = session.teams.find((t) => t.id === g.team1Id);
-          stats[g.team1Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0 };
+          stats[g.team1Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0, scheduled: 0 };
         }
         if (!stats[g.team2Id]) {
           const team = session.teams.find((t) => t.id === g.team2Id);
-          stats[g.team2Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0 };
+          stats[g.team2Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0, scheduled: 0 };
         }
+        stats[g.team1Id].scheduled++;
+        stats[g.team2Id].scheduled++;
+        if (!g.completed || g.team1Score === null || g.team2Score === null) continue;
+        const t1Won = g.team1Score > g.team2Score;
         if (t1Won) stats[g.team1Id].wins++; else stats[g.team1Id].losses++;
         if (!t1Won) stats[g.team2Id].wins++; else stats[g.team2Id].losses++;
         stats[g.team1Id].pointDiff += g.team1Score - g.team2Score;
@@ -203,16 +205,21 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       }
     } else {
       for (const g of games) {
+        for (const p of [g.team1Player1, g.team1Player2, g.team2Player1, g.team2Player2]) {
+          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, pointDiff: 0, played: 0, scheduled: 0 };
+        }
+        stats[g.team1Player1.id].scheduled++;
+        stats[g.team1Player2.id].scheduled++;
+        stats[g.team2Player1.id].scheduled++;
+        stats[g.team2Player2.id].scheduled++;
         if (!g.completed || g.team1Score === null || g.team2Score === null) continue;
         const t1Won = g.team1Score > g.team2Score;
         for (const p of [g.team1Player1, g.team1Player2]) {
-          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, pointDiff: 0, played: 0 };
           if (t1Won) stats[p.id].wins++; else stats[p.id].losses++;
           stats[p.id].pointDiff += g.team1Score - g.team2Score;
           stats[p.id].played++;
         }
         for (const p of [g.team2Player1, g.team2Player2]) {
-          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, pointDiff: 0, played: 0 };
           if (!t1Won) stats[p.id].wins++; else stats[p.id].losses++;
           stats[p.id].pointDiff += g.team2Score - g.team1Score;
           stats[p.id].played++;
@@ -694,28 +701,116 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             <p className="text-zinc-400 text-center py-12">No scores recorded yet.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {leaderboard.map((p, i) => (
-                <Card key={p.name} className="bg-zinc-900 border-zinc-800">
-                  <CardContent className="py-3 px-4 flex items-center gap-3">
-                    <span className="text-lg font-bold text-zinc-600 w-6">{i + 1}</span>
-                    <span className="font-semibold flex-1">{p.name}</span>
-                    <div className="flex gap-3 text-sm">
-                      <span className="font-semibold text-lime-400">{p.wins}W</span>
-                      <span className="font-semibold text-red-400">{p.losses}L</span>
-                      <span>
-                        <span className={`font-semibold ${p.pointDiff >= 0 ? "text-lime-400" : "text-red-400"}`}>
-                          {p.pointDiff > 0 ? "+" : ""}{p.pointDiff}
+              {leaderboard.map((entry, i) => {
+                const isExpanded = expandedEntry === entry.name;
+
+                // Find all games this player/team was in
+                const entryGames = session.sessionFormat === "FIXED"
+                  ? games.filter((g) => {
+                      const t = session.teams.find((t) =>
+                        `${t.player1.name} & ${t.player2.name}` === entry.name
+                      );
+                      return t && (g.team1Id === t.id || g.team2Id === t.id);
+                    })
+                  : games.filter((g) =>
+                      [g.team1Player1, g.team1Player2, g.team2Player1, g.team2Player2]
+                        .some((p) => p.name === entry.name)
+                    );
+
+                return (
+                  <div key={entry.name} className="rounded-xl overflow-hidden border border-zinc-800">
+                    {/* Summary row */}
+                    <button
+                      onClick={() => setExpandedEntry(isExpanded ? null : entry.name)}
+                      className="w-full flex items-center gap-3 px-4 py-3 bg-zinc-900 hover:bg-zinc-800 transition-colors text-left"
+                    >
+                      <span className="text-lg font-bold text-zinc-600 w-6">{i + 1}</span>
+                      <span className="font-semibold flex-1 text-white">{entry.name}</span>
+                      <div className="flex gap-3 text-sm items-center">
+                        <span className="font-semibold text-lime-400">{entry.wins}W</span>
+                        <span className="font-semibold text-red-400">{entry.losses}L</span>
+                        <span>
+                          <span className={`font-semibold ${entry.pointDiff >= 0 ? "text-lime-400" : "text-red-400"}`}>
+                            {entry.pointDiff > 0 ? "+" : ""}{entry.pointDiff}
+                          </span>
+                          <span className="text-zinc-500 text-xs"> diff</span>
                         </span>
-                        <span className="text-zinc-500 text-xs"> diff</span>
-                      </span>
-                      <span>
-                        <span className="font-semibold text-sky-400">{p.played}</span>
-                        <span className="text-zinc-500 text-xs">/{totalCompletedGames}</span>
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        <span className="font-semibold text-sky-400">
+                          {entry.played}/{entry.scheduled}
+                          <span className="text-zinc-500 font-normal text-xs"> games</span>
+                        </span>
+                        <span className="text-zinc-600 text-xs ml-1">{isExpanded ? "▲" : "▼"}</span>
+                      </div>
+                    </button>
+
+                    {/* Expanded games */}
+                    {isExpanded && (
+                      <div className="bg-zinc-950 border-t border-zinc-800 divide-y divide-zinc-800">
+                        {entryGames.length === 0 ? (
+                          <p className="text-zinc-500 text-sm text-center py-4">No games found.</p>
+                        ) : (
+                          [...entryGames]
+                            .sort((a, b) => a.roundNumber - b.roundNumber)
+                            .map((g) => {
+                              const isTeam1 = session.sessionFormat === "FIXED"
+                                ? g.team1Id === session.teams.find((t) => `${t.player1.name} & ${t.player2.name}` === entry.name)?.id
+                                : [g.team1Player1, g.team1Player2].some((p) => p.name === entry.name);
+
+                              const myTeamNames = `${g.team1Player1.name} & ${g.team1Player2.name}`;
+                              const theirTeamNames = `${g.team2Player1.name} & ${g.team2Player2.name}`;
+                              const myScore = isTeam1 ? g.team1Score : g.team2Score;
+                              const theirScore = isTeam1 ? g.team2Score : g.team1Score;
+                              const myTeam = isTeam1 ? myTeamNames : theirTeamNames;
+                              const theirTeam = isTeam1 ? theirTeamNames : myTeamNames;
+                              const won = myScore !== null && theirScore !== null && myScore > theirScore;
+
+                              return (
+                                <div key={g.id} className="px-4 py-2.5">
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="text-xs text-zinc-500">Rd {g.roundNumber}</span>
+                                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${formatColor[g.court.format]}`}>
+                                      Court {g.court.number}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className={`text-sm font-semibold text-lime-400`}>
+                                        {myTeam.split(" & ").map((name, ni) => (
+                                          <span key={ni}>
+                                            {ni > 0 && <span className="text-zinc-500"> & </span>}
+                                            <span className={name === entry.name ? "text-lime-300 underline underline-offset-2" : "text-lime-400"}>
+                                              {name}
+                                            </span>
+                                          </span>
+                                        ))}
+                                      </span>
+                                      {g.completed && myScore !== null && (
+                                        <span className={`text-sm font-bold tabular-nums ${won ? "text-lime-400" : "text-zinc-400"}`}>
+                                          {myScore}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-sm text-zinc-400">{theirTeam}</span>
+                                      {g.completed && theirScore !== null && (
+                                        <span className={`text-sm font-bold tabular-nums ${!won ? "text-lime-400" : "text-zinc-500"}`}>
+                                          {theirScore}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {!g.completed && (
+                                      <span className="text-xs text-zinc-600 italic">Not played yet</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </TabsContent>
