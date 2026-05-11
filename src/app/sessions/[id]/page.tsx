@@ -226,7 +226,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         }
       }
     }
-    return Object.values(stats).sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
+    const entries = Object.values(stats);
+    // Normalise the denominator: use the minimum scheduled count across all
+    // players so everyone shows X/4 when 4 games were requested, not X/5 or X/6
+    const minScheduled = entries.length > 0 ? Math.min(...entries.map((e) => e.scheduled)) : 0;
+    for (const e of entries) e.scheduled = minScheduled;
+    return entries.sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
   })();
 
   const roundsMap = games.reduce<Record<number, Game[]>>((acc, g) => {
@@ -742,7 +747,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     {/* Summary row */}
                     <button
                       onClick={() => setExpandedEntry(isExpanded ? null : entry.name)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800 transition-colors text-left ${
+                      className={`w-full flex items-center gap-2 px-3 py-0 h-14 hover:bg-zinc-800 transition-colors text-left ${
                         i === 0 ? "bg-yellow-500/10" :
                         i === 1 ? "bg-zinc-400/10" :
                         i === 2 ? "bg-orange-600/10" :
@@ -755,8 +760,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         i === 2 ? "text-orange-500" :
                         "text-zinc-600"
                       }`}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</span>
-                      <span className="font-semibold flex-1 text-white">{entry.name}</span>
-                      <div className="flex gap-3 text-sm items-center">
+                      <span className="font-semibold flex-1 text-white truncate min-w-0">{entry.name}</span>
+                      <div className="flex gap-2 text-sm items-center shrink-0 whitespace-nowrap">
                         <span className="font-semibold text-lime-400">{entry.wins}W</span>
                         <span className="font-semibold text-red-400">{entry.losses}L</span>
                         <span>
