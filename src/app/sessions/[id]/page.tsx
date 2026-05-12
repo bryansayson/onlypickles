@@ -469,13 +469,15 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       </div>
 
       <Tabs defaultValue="players">
-        <TabsList className={`w-full mb-4 grid ${session.hasMedalRound ? "grid-cols-5" : "grid-cols-4"}`}>
-          <TabsTrigger value="players">Players</TabsTrigger>
-          <TabsTrigger value="courts">Courts</TabsTrigger>
-          <TabsTrigger value="schedule">Schedule</TabsTrigger>
-          <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
-          {session.hasMedalRound && <TabsTrigger value="medals">Medals</TabsTrigger>}
-        </TabsList>
+        <div className="overflow-x-auto mb-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <TabsList className={`min-w-full grid ${session.hasMedalRound ? "grid-cols-5 min-w-[380px]" : "grid-cols-4 min-w-[300px]"}`}>
+            <TabsTrigger value="players">Players</TabsTrigger>
+            <TabsTrigger value="courts">Courts</TabsTrigger>
+            <TabsTrigger value="schedule">Schedule</TabsTrigger>
+            <TabsTrigger value="leaderboard">Scores</TabsTrigger>
+            {session.hasMedalRound && <TabsTrigger value="medals">Medals</TabsTrigger>}
+          </TabsList>
+        </div>
 
         {/* PLAYERS TAB */}
         <TabsContent value="players">
