@@ -18,13 +18,14 @@ interface Props {
   onClose: () => void;
   currentDate: Date;
   currentEndTime: Date | null;
-  onSaved: (start: Date, end: Date | null) => void;
+  onSaved: (start: Date, end: Date | null) => Promise<void>;
 }
 
 export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onSaved }: Props) {
   const [selected, setSelected] = useState<Date>(currentDate);
   const [startTime, setStartTime] = useState(format(currentDate, "HH:mm"));
   const [endTime, setEndTime] = useState(currentEndTime ? format(currentEndTime, "HH:mm") : "");
+  const [saving, setSaving] = useState(false);
 
   // Reset state every time the dialog opens so edits from previous open don't linger
   useEffect(() => {
@@ -35,7 +36,7 @@ export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onS
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function handleSave() {
+  async function handleSave() {
     const [sh, sm] = startTime.split(":").map(Number);
     const start = new Date(selected);
     start.setHours(sh, sm, 0, 0);
@@ -46,7 +47,9 @@ export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onS
       end = new Date(selected);
       end.setHours(eh, em, 0, 0);
     }
-    onSaved(start, end);
+    setSaving(true);
+    await onSaved(start, end);
+    setSaving(false);
   }
 
   return (
@@ -86,8 +89,8 @@ export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onS
               />
             </div>
           </div>
-          <Button onClick={handleSave} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-            Save
+          <Button onClick={handleSave} disabled={saving} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+            {saving ? "Saving..." : "Save"}
           </Button>
         </div>
       </DialogContent>

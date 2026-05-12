@@ -147,11 +147,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   }
 
   async function updateDate(start: Date, end: Date | null) {
-    await fetch(`/api/sessions/${id}`, {
+    const res = await fetch(`/api/sessions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: start.toISOString(), endTime: end?.toISOString() ?? null }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed to save: ${err.error ?? res.status}`);
+      return;
+    }
     setEditDateOpen(false);
     loadSession();
   }
