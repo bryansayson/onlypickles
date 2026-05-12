@@ -117,7 +117,6 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
               onChange={(e) => setDate(e.target.value)}
               required
               className="mt-1"
-              style={{ colorScheme: "dark" }}
             />
           </div>
           <div className="flex gap-3">
@@ -129,8 +128,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 className="mt-1"
-                style={{ colorScheme: "dark" }}
-              />
+                />
             </div>
             <div className="flex-1">
               <Label htmlFor="endTime">End</Label>
@@ -140,8 +138,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
                 className="mt-1"
-                style={{ colorScheme: "dark" }}
-              />
+                />
             </div>
           </div>
 
