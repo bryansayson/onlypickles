@@ -77,8 +77,19 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
     onCreated();
   }
 
+  // Reset form when dialog closes
+  function handleClose() {
+    setName("");
+    setDate("");
+    setStartTime("09:00");
+    setEndTime("11:00");
+    setCourts([{ number: 1, format: "MIXED" }]);
+    setSessionFormat("ROTATING");
+    onClose();
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Add Session</DialogTitle>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -25,6 +25,15 @@ export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onS
   const [selected, setSelected] = useState<Date>(currentDate);
   const [startTime, setStartTime] = useState(format(currentDate, "HH:mm"));
   const [endTime, setEndTime] = useState(currentEndTime ? format(currentEndTime, "HH:mm") : "");
+
+  // Reset state every time the dialog opens so edits from previous open don't linger
+  useEffect(() => {
+    if (open) {
+      setSelected(currentDate);
+      setStartTime(format(currentDate, "HH:mm"));
+      setEndTime(currentEndTime ? format(currentEndTime, "HH:mm") : "");
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSave() {
     const [sh, sm] = startTime.split(":").map(Number);
@@ -77,7 +86,7 @@ export function EditDateDialog({ open, onClose, currentDate, currentEndTime, onS
               />
             </div>
           </div>
-          <Button onClick={handleSave} className="bg-green-600 hover:bg-green-700">
+          <Button onClick={handleSave} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
             Save
           </Button>
         </div>

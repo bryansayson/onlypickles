@@ -84,7 +84,11 @@ export function generateSchedule(
       const bothInGame = [t1p1, t1p2, t2p1, t2p2].includes(a) && [t1p1, t1p2, t2p1, t2p2].includes(b);
 
       if (type === "MUST_NOT_PARTNER" && (t1Together || t2Together)) score += 10000;
-      if (type === "MUST_PARTNER" && bothInGame && !t1Together && !t2Together) score += 10000;
+      // MUST_PARTNER = partner at least once: penalise being split only until they've partnered
+      if (type === "MUST_PARTNER" && bothInGame && !t1Together && !t2Together) {
+        const alreadyPartnered = get(partnerCount, a, b) > 0;
+        if (!alreadyPartnered) score += 10000;
+      }
     }
 
     return score;

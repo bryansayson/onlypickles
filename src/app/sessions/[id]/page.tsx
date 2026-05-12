@@ -617,7 +617,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       }`}
                     >
                       <span className={`text-xs font-bold shrink-0 ${ov.type === "MUST_PARTNER" ? "text-lime-400" : "text-red-400"}`}>
-                        {ov.type === "MUST_PARTNER" ? "WITH" : "NOT"}
+                        {ov.type === "MUST_PARTNER" ? "ONCE" : "NEVER"}
                       </span>
                       <span className="text-white flex-1">
                         {ov.player1.name} <span className="text-zinc-500">&</span> {ov.player2.name}

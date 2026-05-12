@@ -87,14 +87,14 @@ export function AddOverrideDialog({ open, onClose, sessionId, players, onCreated
                   : "bg-zinc-900 text-zinc-400 border-zinc-700"
               }`}
             >
-              {t === "MUST_PARTNER" ? "Must Partner" : "Must NOT Partner"}
+              {t === "MUST_PARTNER" ? "Partner At Least Once" : "Never Partner"}
             </button>
           ))}
         </div>
 
         <p className="text-xs text-zinc-500 -mt-1">
           {type === "MUST_PARTNER"
-            ? "These two players will always be on the same team."
+            ? "The algorithm will pair these two players together at least once."
             : "These two players will never be on the same team."}
         </p>
 
