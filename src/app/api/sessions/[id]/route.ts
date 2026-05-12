@@ -21,8 +21,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const body = await request.json();
   const data: Record<string, unknown> = {};
   if (body.name !== undefined) data.name = body.name?.trim() || null;
-  if (body.date) data.date = new Date(body.date);
-  if (body.endTime !== undefined) data.endTime = body.endTime ? new Date(body.endTime) : null;
+  if (body.date) data.date = body.date;
+  if (body.endTime !== undefined) data.endTime = body.endTime ?? null;
   if (body.sessionFormat) data.sessionFormat = body.sessionFormat;
   const session = await prisma.session.update({ where: { id }, data });
   return NextResponse.json(session);

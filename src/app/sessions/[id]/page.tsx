@@ -150,7 +150,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     const res = await fetch(`/api/sessions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: start.toISOString(), endTime: end?.toISOString() ?? null }),
+      body: JSON.stringify({
+        date: start.toISOString().replace("Z", ""),
+        endTime: end ? end.toISOString().replace("Z", "") : null,
+      }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

@@ -23,8 +23,8 @@ export async function POST(request: Request) {
   const session = await prisma.session.create({
     data: {
       name: name?.trim() || null,
-      date: new Date(date),
-      endTime: endTime ? new Date(endTime) : null,
+      date: date,
+      endTime: endTime ?? null,
       sessionFormat: sessionFormat ?? "ROTATING",
     },
   });
