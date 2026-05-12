@@ -32,6 +32,7 @@ interface Props {
 }
 
 export function AddSessionDialog({ open, onClose, onCreated }: Props) {
+  const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("11:00");
@@ -64,9 +65,10 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
     await fetch("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: datetime, endTime: endDatetime, courts, sessionFormat }),
+      body: JSON.stringify({ name, date: datetime, endTime: endDatetime, courts, sessionFormat }),
     });
     setLoading(false);
+    setName("");
     setDate("");
     setStartTime("09:00");
     setEndTime("11:00");
@@ -82,6 +84,16 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
           <DialogTitle>Add Session</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
+          <div>
+            <Label htmlFor="name">Session Name</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Tuesday Open Play"
+              className="mt-1"
+            />
+          </div>
           <div>
             <Label htmlFor="date">Date</Label>
             <Input

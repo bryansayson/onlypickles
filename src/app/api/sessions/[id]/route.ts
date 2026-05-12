@@ -20,6 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const body = await request.json();
   const data: Record<string, unknown> = {};
+  if (body.name !== undefined) data.name = body.name?.trim() || null;
   if (body.date) data.date = new Date(body.date);
   if (body.endTime !== undefined) data.endTime = body.endTime ? new Date(body.endTime) : null;
   if (body.sessionFormat) data.sessionFormat = body.sessionFormat;

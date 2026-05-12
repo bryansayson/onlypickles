@@ -15,13 +15,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { date, endTime, courts, sessionFormat } = body;
+  const { name, date, endTime, courts, sessionFormat } = body;
   if (!date || !courts?.length) {
     return NextResponse.json({ error: "date and courts required" }, { status: 400 });
   }
   // Create session first, then courts separately — HTTP adapter doesn't support transactions
   const session = await prisma.session.create({
     data: {
+      name: name?.trim() || null,
       date: new Date(date),
       endTime: endTime ? new Date(endTime) : null,
       sessionFormat: sessionFormat ?? "ROTATING",

@@ -54,6 +54,7 @@ interface PlayerOverride {
 
 interface Session {
   id: string;
+  name: string | null;
   date: string;
   endTime: string | null;
   sessionFormat: "ROTATING" | "FIXED";
@@ -104,6 +105,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [scores, setScores] = useState<Record<string, { t1: string; t2: string }>>({});
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [addOverrideOpen, setAddOverrideOpen] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
 
   async function loadSession() {
     const res = await fetch(`/api/sessions/${id}`);
@@ -150,6 +153,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       body: JSON.stringify({ date: start.toISOString(), endTime: end?.toISOString() ?? null }),
     });
     setEditDateOpen(false);
+    loadSession();
+  }
+
+  async function saveName() {
+    await fetch(`/api/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: nameInput }),
+    });
+    setEditingName(false);
     loadSession();
   }
 
@@ -290,24 +303,62 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{format(new Date(session.date), "EEEE, MMMM d")}</h1>
-          <p className="text-zinc-400">
-            {format(new Date(session.date), "h:mm a")}
-            {session.endTime && ` – ${format(new Date(session.endTime), "h:mm a")}`}
-          </p>
-          <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-medium">
-            {session.sessionFormat === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
-          </span>
-        </div>
-        {isAdmin && (
-          <button
-            onClick={() => setEditDateOpen(true)}
-            className="text-xs text-zinc-500 hover:text-zinc-200 underline mt-1"
-          >
-            Edit
-          </button>
+      <div className="mb-6">
+        {/* Name */}
+        {editingName ? (
+          <div className="flex items-center gap-2 mb-1">
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
+              placeholder="Session name"
+              className="flex-1 text-2xl font-bold bg-transparent border-b border-zinc-600 outline-none text-white placeholder-zinc-600"
+            />
+            <button onClick={saveName} className="text-lime-400 text-sm font-semibold">Save</button>
+            <button onClick={() => setEditingName(false)} className="text-zinc-500 text-sm">Cancel</button>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              {session.name && (
+                <h1
+                  className="text-2xl font-bold text-white cursor-pointer hover:text-zinc-300"
+                  onClick={isAdmin ? () => { setNameInput(session.name ?? ""); setEditingName(true); } : undefined}
+                >
+                  {session.name}
+                </h1>
+              )}
+              <p className={session.name ? "text-zinc-400" : "text-2xl font-bold text-white"}>
+                {format(new Date(session.date), "EEEE, MMMM d")}
+              </p>
+              <p className="text-zinc-400 text-sm">
+                {format(new Date(session.date), "h:mm a")}
+                {session.endTime && ` – ${format(new Date(session.endTime), "h:mm a")}`}
+              </p>
+              <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-medium">
+                {session.sessionFormat === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
+              </span>
+            </div>
+            {isAdmin && (
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                {!session.name && (
+                  <button
+                    onClick={() => { setNameInput(""); setEditingName(true); }}
+                    className="text-xs text-zinc-500 hover:text-zinc-200 underline"
+                  >
+                    + Name
+                  </button>
+                )}
+                <button
+                  onClick={() => setEditDateOpen(true)}
+                  className="text-xs text-zinc-500 hover:text-zinc-200 underline"
+                >
+                  Edit date
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

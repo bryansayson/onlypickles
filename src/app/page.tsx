@@ -16,6 +16,7 @@ interface Court {
 
 interface Session {
   id: string;
+  name: string | null;
   date: string;
   endTime: string | null;
   courts: Court[];
@@ -45,7 +46,10 @@ function SessionCard({ session, isAdmin, onDelete }: {
         <CardContent className="py-4 px-5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-bold text-white">
+              {session.name && (
+                <p className="font-bold text-white truncate">{session.name}</p>
+              )}
+              <p className={session.name ? "text-sm text-zinc-400" : "font-bold text-white"}>
                 {format(new Date(session.date), "EEEE, MMMM d")}
               </p>
               <p className="text-sm text-zinc-400">

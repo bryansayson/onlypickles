@@ -26,6 +26,7 @@ model Player {
 
 model Session {
   id            String        @id @default(cuid())
+  name          String?
   date          DateTime
   endTime       DateTime?
   sessionFormat SessionFormat @default(ROTATING)
