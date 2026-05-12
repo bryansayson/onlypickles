@@ -38,6 +38,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
   const [endTime, setEndTime] = useState("11:00");
   const [courts, setCourts] = useState<CourtEntry[]>([{ number: 1, format: "MIXED" }]);
   const [sessionFormat, setSessionFormat] = useState<"ROTATING" | "FIXED">("ROTATING");
+  const [hasMedalRound, setHasMedalRound] = useState(false);
   const [loading, setLoading] = useState(false);
 
   function addCourt() {
@@ -65,7 +66,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
     await fetch("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, date: datetime, endTime: endDatetime, courts, sessionFormat }),
+      body: JSON.stringify({ name, date: datetime, endTime: endDatetime, courts, sessionFormat, hasMedalRound }),
     });
     setLoading(false);
     setName("");
@@ -74,6 +75,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
     setEndTime("11:00");
     setCourts([{ number: 1, format: "MIXED" }]);
     setSessionFormat("ROTATING");
+    setHasMedalRound(false);
     onCreated();
   }
 
@@ -85,6 +87,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
     setEndTime("11:00");
     setCourts([{ number: 1, format: "MIXED" }]);
     setSessionFormat("ROTATING");
+    setHasMedalRound(false);
     onClose();
   }
 
@@ -205,6 +208,16 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
               ))}
             </div>
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={hasMedalRound}
+              onChange={(e) => setHasMedalRound(e.target.checked)}
+              className="w-4 h-4 rounded accent-green-600"
+            />
+            <span className="text-sm text-gray-700">With medal rounds</span>
+          </label>
 
           <Button
             type="submit"

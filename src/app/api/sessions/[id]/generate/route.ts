@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   generateSchedule,
   roundsFromMinGames,
+  roundsFromMinGamesSplit,
   generateFixedSchedule,
   roundsFromMinGamesFixed,
   RRTeam,
@@ -11,7 +12,7 @@ import {
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: sessionId } = await params;
-  const { mode, value } = await request.json();
+  const { mode, value, womensValue } = await request.json();
 
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
@@ -121,10 +122,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: errors.join(". ") }, { status: 400 });
     }
 
-    const numRounds =
-      mode === "minGames"
-        ? roundsFromMinGames(players, courts, value)
-        : value;
+    const isSplitSession = mensCourts > 0 && womensCourts > 0 && mixedCourts === 0;
+
+    let numRounds: number;
+    if (mode === "splitMinGames") {
+      const malePlayers = players.filter((p) => p.gender === "MALE");
+      const femalePlayers = players.filter((p) => p.gender === "FEMALE");
+      const rrMensCourts = courts.filter((c) => c.format === "MENS");
+      const rrWomensCourts = courts.filter((c) => c.format === "WOMENS");
+      numRounds = roundsFromMinGamesSplit(
+        malePlayers, femalePlayers,
+        rrMensCourts, rrWomensCourts,
+        value, womensValue ?? value
+      );
+    } else if (mode === "minGames") {
+      numRounds = roundsFromMinGames(players, courts, value);
+    } else {
+      numRounds = value;
+    }
 
     const rrOverrides: RROverride[] = session.playerOverrides.map((o) => ({
       player1Id: o.player1Id,

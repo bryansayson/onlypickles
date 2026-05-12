@@ -337,6 +337,28 @@ export function roundsFromMinGamesFixed(
   return Math.ceil(minGames / rate);
 }
 
+// Independent per-gender calculation for MENS+WOMENS-only sessions.
+// Returns the max of the two genders so both reach minGames.
+export function roundsFromMinGamesSplit(
+  malePlayers: RRPlayer[],
+  femalePlayers: RRPlayer[],
+  mensCourts: RRCourt[],
+  womensCourts: RRCourt[],
+  menMinGames: number,
+  womenMinGames: number
+): number {
+  const malesPlaying = Math.min(malePlayers.length, mensCourts.length * 4);
+  const femalesPlaying = Math.min(femalePlayers.length, womensCourts.length * 4);
+
+  const maleRate = malePlayers.length > 0 ? malesPlaying / malePlayers.length : 0;
+  const femaleRate = femalePlayers.length > 0 ? femalesPlaying / femalePlayers.length : 0;
+
+  const menRounds = maleRate > 0 ? Math.ceil(menMinGames / maleRate) : 0;
+  const womenRounds = femaleRate > 0 ? Math.ceil(womenMinGames / femaleRate) : 0;
+
+  return Math.max(menRounds, womenRounds, 1);
+}
+
 export function roundsFromMinGames(
   players: RRPlayer[],
   courts: RRCourt[],

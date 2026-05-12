@@ -13,6 +13,8 @@ import { AddCourtDialog } from "@/components/AddCourtDialog";
 import { EditDateDialog } from "@/components/EditDateDialog";
 import { CreateTeamDialog } from "@/components/CreateTeamDialog";
 import { AddOverrideDialog } from "@/components/AddOverrideDialog";
+import { MedalRoundTab } from "@/components/MedalRoundTab";
+import { MatchupDisplay } from "@/components/MatchupDisplay";
 import {
   Select,
   SelectContent,
@@ -58,6 +60,7 @@ interface Session {
   date: string;
   endTime: string | null;
   sessionFormat: "ROTATING" | "FIXED";
+  hasMedalRound: boolean;
   courts: Court[];
   sessionPlayers: SessionPlayer[];
   teams: Team[];
@@ -166,6 +169,26 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     setEditDateOpen(false);
     // Full reload in background to sync includes
     loadSession();
+  }
+
+  async function toggleFormat() {
+    const next = session!.sessionFormat === "ROTATING" ? "FIXED" : "ROTATING";
+    setSession((prev) => prev ? { ...prev, sessionFormat: next } : prev);
+    await fetch(`/api/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionFormat: next }),
+    });
+  }
+
+  async function toggleMedalRound() {
+    const next = !session!.hasMedalRound;
+    setSession((prev) => prev ? { ...prev, hasMedalRound: next } : prev);
+    await fetch(`/api/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hasMedalRound: next }),
+    });
   }
 
   async function saveName() {
@@ -348,9 +371,24 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 {format(new Date(session.date), "h:mm a")}
                 {session.endTime && ` – ${format(new Date(session.endTime), "h:mm a")}`}
               </p>
-              <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-medium">
-                {session.sessionFormat === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
-              </span>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                <button
+                  onClick={isAdmin ? toggleFormat : undefined}
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-800 text-zinc-400 ${isAdmin ? "hover:bg-zinc-700 cursor-pointer" : "cursor-default"}`}
+                >
+                  {session.sessionFormat === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
+                </button>
+                <button
+                  onClick={isAdmin ? toggleMedalRound : undefined}
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                    session.hasMedalRound
+                      ? "bg-yellow-900/50 text-yellow-400"
+                      : "bg-zinc-800 text-zinc-500"
+                  } ${isAdmin ? "hover:opacity-75 cursor-pointer" : "cursor-default"}`}
+                >
+                  {session.hasMedalRound ? "With Medal Rounds" : "No Medal Rounds"}
+                </button>
+              </div>
             </div>
             {isAdmin && (
               <div className="flex flex-col items-end gap-1 shrink-0">
@@ -375,11 +413,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       </div>
 
       <Tabs defaultValue="players">
-        <TabsList className="w-full mb-4">
-          <TabsTrigger value="players" className="flex-1">Players</TabsTrigger>
-          <TabsTrigger value="courts" className="flex-1">Courts</TabsTrigger>
-          <TabsTrigger value="schedule" className="flex-1">Schedule</TabsTrigger>
-          <TabsTrigger value="leaderboard" className="flex-1">Leaderboard</TabsTrigger>
+        <TabsList className={`w-full mb-4 grid ${session.hasMedalRound ? "grid-cols-5" : "grid-cols-4"}`}>
+          <TabsTrigger value="players">Players</TabsTrigger>
+          <TabsTrigger value="courts">Courts</TabsTrigger>
+          <TabsTrigger value="schedule">Schedule</TabsTrigger>
+          <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
+          {session.hasMedalRound && <TabsTrigger value="medals">Medals</TabsTrigger>}
         </TabsList>
 
         {/* PLAYERS TAB */}
@@ -923,7 +962,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
                               return (
                                 <div key={g.id} className={`px-4 py-2.5 ${rowBg}`}>
-                                  <div className="flex items-center gap-2 mb-1.5">
+                                  <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xs text-zinc-500">Rd {g.roundNumber}</span>
                                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${formatColor[g.court.format]}`}>
                                       Court {g.court.number}
@@ -934,36 +973,14 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex flex-col gap-1">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-sm font-semibold text-white">
-                                        {myTeam.split(" & ").map((name, ni) => (
-                                          <span key={ni}>
-                                            {ni > 0 && <span className="text-zinc-500"> & </span>}
-                                            <span className={name === entry.name ? "underline underline-offset-2" : ""}>
-                                              {name}
-                                            </span>
-                                          </span>
-                                        ))}
-                                      </span>
-                                      {g.completed && myScore !== null && (
-                                        <span className={`text-sm font-bold tabular-nums ${won ? "text-lime-400" : "text-red-400"}`}>
-                                          {myScore}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-sm text-zinc-500">{theirTeam}</span>
-                                      {g.completed && theirScore !== null && (
-                                        <span className="text-sm font-bold tabular-nums text-zinc-500">
-                                          {theirScore}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {!g.completed && (
-                                      <span className="text-xs text-zinc-600 italic">Not played yet</span>
-                                    )}
-                                  </div>
+                                  <MatchupDisplay
+                                    team1={{ names: myTeam.split(" & "), score: myScore, won, highlight: entry.name }}
+                                    team2={{ names: theirTeam.split(" & "), score: theirScore, won: !won && g.completed }}
+                                    completed={g.completed}
+                                  />
+                                  {!g.completed && (
+                                    <span className="text-xs text-zinc-600 italic mt-1 block">Not played yet</span>
+                                  )}
                                 </div>
                               );
                             })
@@ -1012,6 +1029,19 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             );
           })()}
         </TabsContent>
+        {/* MEDAL ROUNDS TAB */}
+        {session.hasMedalRound && (
+          <TabsContent value="medals">
+            <MedalRoundTab
+              sessionId={id}
+              sessionFormat={session.sessionFormat}
+              courts={session.courts}
+              sessionTeams={session.teams}
+              sessionPlayers={session.sessionPlayers}
+              games={games}
+            />
+          </TabsContent>
+        )}
       </Tabs>
 
       <AddPlayersSheet
@@ -1027,6 +1057,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         onClose={() => setGenerateOpen(false)}
         sessionId={id}
         sessionFormat={session.sessionFormat}
+        courts={session.courts}
         onGenerated={() => { setGenerateOpen(false); loadGames(); }}
       />
 

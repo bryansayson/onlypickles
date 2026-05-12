@@ -11,17 +11,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+interface Court {
+  format: "MIXED" | "MENS" | "WOMENS";
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
   sessionId: string;
   sessionFormat: "ROTATING" | "FIXED";
+  courts: Court[];
   onGenerated: () => void;
 }
 
-export function GenerateDialog({ open, onClose, sessionId, sessionFormat, onGenerated }: Props) {
+export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts, onGenerated }: Props) {
+  const isSplit = sessionFormat === "ROTATING"
+    && courts.some((c) => c.format === "MENS")
+    && courts.some((c) => c.format === "WOMENS")
+    && !courts.some((c) => c.format === "MIXED");
+
   const [rrType, setRrType] = useState<"single" | "double">("single");
-  const [minGames, setMinGames] = useState("5");
+  const [mensMinGames, setMensMinGames] = useState("5");
+  const [womensMinGames, setWomensMinGames] = useState("5");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -33,7 +44,9 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, onGene
     const body =
       sessionFormat === "FIXED"
         ? { mode: rrType }
-        : { mode: "minGames", value: parseInt(minGames) };
+        : isSplit
+        ? { mode: "splitMinGames", value: parseInt(mensMinGames), womensValue: parseInt(womensMinGames) }
+        : { mode: "minGames", value: parseInt(mensMinGames) };
 
     const res = await fetch(`/api/sessions/${sessionId}/generate`, {
       method: "POST",
@@ -80,6 +93,39 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, onGene
                 </button>
               ))}
             </div>
+          ) : isSplit ? (
+            <div className="flex flex-col gap-3">
+              <div>
+                <Label htmlFor="mensGames" className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-sky-400 inline-block" />
+                  Men&apos;s games per player
+                </Label>
+                <Input
+                  id="mensGames"
+                  type="number"
+                  min="1"
+                  value={mensMinGames}
+                  onChange={(e) => setMensMinGames(e.target.value)}
+                  className="mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="womensGames" className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-pink-400 inline-block" />
+                  Women&apos;s games per player
+                </Label>
+                <Input
+                  id="womensGames"
+                  type="number"
+                  min="1"
+                  value={womensMinGames}
+                  onChange={(e) => setWomensMinGames(e.target.value)}
+                  className="mt-1"
+                  required
+                />
+              </div>
+            </div>
           ) : (
             <div>
               <Label htmlFor="value">Games per player</Label>
@@ -87,8 +133,8 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, onGene
                 id="value"
                 type="number"
                 min="1"
-                value={minGames}
-                onChange={(e) => setMinGames(e.target.value)}
+                value={mensMinGames}
+                onChange={(e) => setMensMinGames(e.target.value)}
                 className="mt-1"
                 required
               />
@@ -99,7 +145,7 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, onGene
 
           <Button
             type="submit"
-            disabled={loading || (sessionFormat === "ROTATING" && !minGames)}
+            disabled={loading || (sessionFormat === "ROTATING" && !mensMinGames)}
             className="bg-green-600 hover:bg-green-700"
           >
             {loading ? "Generating..." : "Generate"}

@@ -29,13 +29,25 @@ model Session {
   name          String?
   date          DateTime
   endTime       DateTime?
-  sessionFormat SessionFormat @default(ROTATING)
-  createdAt     DateTime      @default(now())
+  sessionFormat  SessionFormat @default(ROTATING)
+  hasMedalRound  Boolean       @default(false)
+  createdAt      DateTime      @default(now())
 
   courts          Court[]
   sessionPlayers  SessionPlayer[]
   teams           Team[]
   playerOverrides PlayerOverride[]
+  medalRound      MedalRound?
+}
+
+model MedalRound {
+  id        String         @id @default(cuid())
+  sessionId String         @unique
+  type      MedalRoundType
+  data      Json
+  createdAt DateTime       @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
 model PlayerOverride {
@@ -134,4 +146,10 @@ enum SessionFormat {
 enum OverrideType {
   MUST_PARTNER
   MUST_NOT_PARTNER
+}
+
+enum MedalRoundType {
+  FIXED
+  RANDOM
+  SNAKE
 }

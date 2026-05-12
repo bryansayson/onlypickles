@@ -15,7 +15,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { name, date, endTime, courts, sessionFormat } = body;
+  const { name, date, endTime, courts, sessionFormat, hasMedalRound } = body;
   if (!date || !courts?.length) {
     return NextResponse.json({ error: "date and courts required" }, { status: 400 });
   }
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       date: date,
       endTime: endTime ?? null,
       sessionFormat: sessionFormat ?? "ROTATING",
+      hasMedalRound: hasMedalRound ?? false,
     },
   });
   await Promise.all(

@@ -1,0 +1,1 @@
+ALTER TYPE "MedalRoundType" ADD VALUE 'SNAKE';
