@@ -15,6 +15,7 @@ import { CreateTeamDialog } from "@/components/CreateTeamDialog";
 import { AddOverrideDialog } from "@/components/AddOverrideDialog";
 import { MedalRoundTab } from "@/components/MedalRoundTab";
 import { MatchupDisplay } from "@/components/MatchupDisplay";
+import { GameCard, formatColor } from "@/components/GameCard";
 import {
   Select,
   SelectContent,
@@ -89,11 +90,6 @@ const formatLabel: Record<string, string> = {
   WOMENS: "Women's",
 };
 
-const formatColor: Record<string, string> = {
-  MIXED: "bg-purple-900/50 text-purple-300",
-  MENS: "bg-sky-900/50 text-sky-300",
-  WOMENS: "bg-pink-900/50 text-pink-300",
-};
 
 export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -800,10 +796,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 return (
                   <div
                     key={roundNum}
-                    className={`rounded-xl p-3 transition-opacity ${isRoundComplete && !isRoundEditing ? "opacity-50" : "opacity-100"} ${
-                      isCurrent ? "bg-zinc-800 ring-2 ring-lime-500/60" : "bg-zinc-800"
-                    }`}
+                    className={`relative rounded-xl p-3 transition-opacity ${isRoundComplete && !isRoundEditing ? "opacity-50" : "opacity-100"} bg-zinc-800`}
                   >
+                    {isCurrent && (
+                      <div className="absolute inset-0 rounded-xl ring-2 ring-lime-500/70 animate-pulse pointer-events-none" />
+                    )}
                     {/* Round header */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -844,83 +841,24 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         const isEditing = !!sc;
                         const showInputs = isAdmin && (isEditing || !game.completed);
                         return (
-                          <div
+                          <GameCard
                             key={game.id}
-                            className="bg-zinc-900 rounded-lg border border-zinc-700 px-3 py-2.5 min-w-0"
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[game.court.format]}`}>
-                                Court {game.court.number}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-sm font-medium flex-1">
-                                  {game.team1Player1.name} & {game.team1Player2.name}
-                                </span>
-                                {showInputs ? (
-                                  <Input
-                                    className="w-14 h-8 text-center text-sm p-1 shrink-0"
-                                    placeholder="0"
-                                    value={sc?.t1 ?? ""}
-                                    onChange={(e) =>
-                                      setScores((prev) => ({
-                                        ...prev,
-                                        [game.id]: { t1: e.target.value, t2: sc?.t2 ?? "" },
-                                      }))
-                                    }
-                                  />
-                                ) : game.completed ? (
-                                  <span className={`text-lg font-bold tabular-nums w-14 text-right shrink-0 ${game.team1Score! > game.team2Score! ? "text-lime-400" : "text-zinc-500"}`}>
-                                    {game.team1Score}
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 border-t border-zinc-800" />
-                                <span className="text-xs text-zinc-600">vs</span>
-                                <div className="flex-1 border-t border-zinc-800" />
-                              </div>
-
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-sm font-medium flex-1">
-                                  {game.team2Player1.name} & {game.team2Player2.name}
-                                </span>
-                                {showInputs ? (
-                                  <Input
-                                    className="w-14 h-8 text-center text-sm p-1 shrink-0"
-                                    placeholder="0"
-                                    value={sc?.t2 ?? ""}
-                                    onChange={(e) =>
-                                      setScores((prev) => ({
-                                        ...prev,
-                                        [game.id]: { t1: sc?.t1 ?? "", t2: e.target.value },
-                                      }))
-                                    }
-                                  />
-                                ) : game.completed ? (
-                                  <span className={`text-lg font-bold tabular-nums w-14 text-right shrink-0 ${game.team2Score! > game.team1Score! ? "text-lime-400" : "text-zinc-500"}`}>
-                                    {game.team2Score}
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-
-                            {showInputs && !isEditing && (
-                              <div className="flex gap-2 mt-2.5">
-                                <Button
-                                  size="sm"
-                                  className="flex-1 h-8 text-xs bg-lime-500 hover:bg-lime-400 text-black font-bold"
-                                  onClick={() => submitScore(game.id)}
-                                  disabled={!scores[game.id]?.t1 || !scores[game.id]?.t2}
-                                >
-                                  Save
-                                </Button>
-                              </div>
-                            )}
-                          </div>
+                            courtFormat={game.court.format}
+                            courtNumber={game.court.number}
+                            team1Names={[`${game.team1Player1.name} & ${game.team1Player2.name}`]}
+                            team2Names={[`${game.team2Player1.name} & ${game.team2Player2.name}`]}
+                            team1Score={game.team1Score}
+                            team2Score={game.team2Score}
+                            completed={game.completed}
+                            highlightWinner={game.completed}
+                            scoreEntry={showInputs ? {
+                              t1: sc?.t1 ?? "",
+                              t2: sc?.t2 ?? "",
+                              onT1Change: (v) => setScores((prev) => ({ ...prev, [game.id]: { t1: v, t2: sc?.t2 ?? "" } })),
+                              onT2Change: (v) => setScores((prev) => ({ ...prev, [game.id]: { t1: sc?.t1 ?? "", t2: v } })),
+                              onSave: !game.completed ? () => submitScore(game.id) : undefined,
+                            } : undefined}
+                          />
                         );
                       })}
                     </div>
@@ -1036,53 +974,40 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
                     {/* Expanded games */}
                     {isExpanded && (
-                      <div className="bg-zinc-950 border-t border-zinc-800 divide-y divide-zinc-800">
+                      <div className="bg-zinc-950 border-t border-zinc-800 p-3">
                         {entryGames.length === 0 ? (
                           <p className="text-zinc-500 text-sm text-center py-4">No games found.</p>
                         ) : (
-                          [...entryGames]
-                            .sort((a, b) => a.roundNumber - b.roundNumber)
-                            .map((g) => {
-                              const isTeam1 = session.sessionFormat === "FIXED"
-                                ? g.team1Id === session.teams.find((t) => `${t.player1.name} & ${t.player2.name}` === entry.name)?.id
-                                : [g.team1Player1, g.team1Player2].some((p) => p.name === entry.name);
+                          <div className="grid grid-cols-2 gap-2">
+                            {[...entryGames]
+                              .sort((a, b) => a.roundNumber - b.roundNumber)
+                              .map((g) => {
+                                const isTeam1 = session.sessionFormat === "FIXED"
+                                  ? g.team1Id === session.teams.find((t) => `${t.player1.name} & ${t.player2.name}` === entry.name)?.id
+                                  : [g.team1Player1, g.team1Player2].some((p) => p.name === entry.name);
 
-                              const myTeamNames = `${g.team1Player1.name} & ${g.team1Player2.name}`;
-                              const theirTeamNames = `${g.team2Player1.name} & ${g.team2Player2.name}`;
-                              const myScore = isTeam1 ? g.team1Score : g.team2Score;
-                              const theirScore = isTeam1 ? g.team2Score : g.team1Score;
-                              const myTeam = isTeam1 ? myTeamNames : theirTeamNames;
-                              const theirTeam = isTeam1 ? theirTeamNames : myTeamNames;
-                              const won = myScore !== null && theirScore !== null && myScore > theirScore;
+                                const myTeam   = isTeam1 ? `${g.team1Player1.name} & ${g.team1Player2.name}` : `${g.team2Player1.name} & ${g.team2Player2.name}`;
+                                const theirTeam = isTeam1 ? `${g.team2Player1.name} & ${g.team2Player2.name}` : `${g.team1Player1.name} & ${g.team1Player2.name}`;
+                                const myScore    = isTeam1 ? g.team1Score : g.team2Score;
+                                const theirScore = isTeam1 ? g.team2Score : g.team1Score;
+                                const won = myScore !== null && theirScore !== null && myScore > theirScore;
 
-                              const rowBg = !g.completed
-                                ? ""
-                                : won ? "bg-lime-950/60" : "bg-red-950/60";
-
-                              return (
-                                <div key={g.id} className={`px-4 py-2.5 ${rowBg}`}>
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-xs text-zinc-500">Rd {g.roundNumber}</span>
-                                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${formatColor[g.court.format]}`}>
-                                      Court {g.court.number}
-                                    </span>
-                                    {g.completed && (
-                                      <span className={`text-xs font-bold ml-auto ${won ? "text-lime-400" : "text-red-400"}`}>
-                                        {won ? "W" : "L"}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <MatchupDisplay
-                                    team1={{ names: myTeam.split(" & "), score: myScore, won, highlight: entry.name }}
-                                    team2={{ names: theirTeam.split(" & "), score: theirScore, won: !won && g.completed }}
+                                return (
+                                  <GameCard
+                                    key={g.id}
+                                    courtFormat={g.court.format}
+                                    roundNumber={g.roundNumber}
+                                    team1Names={myTeam.split(" & ")}
+                                    team2Names={theirTeam.split(" & ")}
+                                    team1Score={myScore}
+                                    team2Score={theirScore}
                                     completed={g.completed}
+                                    highlightName={entry.name}
+                                    highlightResult={g.completed ? (won ? "won" : "lost") : undefined}
                                   />
-                                  {!g.completed && (
-                                    <span className="text-xs text-zinc-600 italic mt-1 block">Not played yet</span>
-                                  )}
-                                </div>
-                              );
-                            })
+                                );
+                              })}
+                          </div>
                         )}
                       </div>
                     )}

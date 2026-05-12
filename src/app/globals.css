@@ -150,8 +150,8 @@
   --color-lime-600: oklch(84.1% 0.238 128.85);
   --color-lime-700: oklch(89.7% 0.196 126.665);
   --color-lime-800: oklch(93.8% 0.127 124.321);
-  --color-lime-900: oklch(96.7% 0.067 122.328);
-  --color-lime-950: oklch(98.6% 0.031 120.757);
+  --color-lime-900: oklch(84.1% 0.238 128.85);  /* lime-400: saturated border in light mode */
+  --color-lime-950: oklch(93.8% 0.127 124.321); /* lime-200: clearly green bg in light mode */
 
   /* ── red scale inverted (losses) ── */
   --color-red-50:  oklch(25.8% 0.092 26.042);
@@ -162,8 +162,8 @@
   --color-red-600: oklch(70.4% 0.191 22.216);
   --color-red-700: oklch(80.8% 0.114 19.571);
   --color-red-800: oklch(88.5% 0.062 18.334);
-  --color-red-900: oklch(93.6% 0.032 17.717);
-  --color-red-950: oklch(97.1% 0.013 17.38);
+  --color-red-900: oklch(80.8% 0.114 19.571);  /* red-300: saturated border in light mode */
+  --color-red-950: oklch(88.5% 0.062 18.334);  /* red-200: clearly red bg in light mode */
 
   /* ── yellow scale inverted (gold medals) ── */
   --color-yellow-50:  oklch(28.6% 0.066 53.813);
