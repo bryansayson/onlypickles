@@ -157,7 +157,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       alert(`Failed to save: ${err.error ?? res.status}`);
       return;
     }
+    // Immediately patch the local state so UI updates without waiting for full reload
+    const updated = await res.json();
+    setSession((prev) => prev ? { ...prev, date: updated.date, endTime: updated.endTime } : prev);
     setEditDateOpen(false);
+    // Full reload in background to sync includes
     loadSession();
   }
 
