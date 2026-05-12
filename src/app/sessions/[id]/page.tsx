@@ -106,6 +106,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [editDateOpen, setEditDateOpen] = useState(false);
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [scores, setScores] = useState<Record<string, { t1: string; t2: string }>>({});
+  const [savingRound, setSavingRound] = useState<number | null>(null);
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [addOverrideOpen, setAddOverrideOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -232,28 +233,54 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       body: JSON.stringify({ team1Score: t1, team2Score: t2 }),
     });
     loadGames();
+    setScores((prev) => { const next = { ...prev }; delete next[gameId]; return next; });
+  }
+
+  async function saveRound(roundGames: Game[]) {
+    const toSave = roundGames.filter((g) => {
+      const s = scores[g.id];
+      return s && !isNaN(parseInt(s.t1)) && !isNaN(parseInt(s.t2));
+    });
+    if (toSave.length === 0) return;
+    setSavingRound(toSave[0].roundNumber);
+    await Promise.all(toSave.map((g) =>
+      fetch(`/api/games/${g.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team1Score: parseInt(scores[g.id].t1), team2Score: parseInt(scores[g.id].t2) }),
+      })
+    ));
+    loadGames();
     setScores((prev) => {
       const next = { ...prev };
-      delete next[gameId];
+      toSave.forEach((g) => delete next[g.id]);
+      return next;
+    });
+    setSavingRound(null);
+  }
+
+  function cancelRound(roundGames: Game[]) {
+    setScores((prev) => {
+      const next = { ...prev };
+      roundGames.forEach((g) => delete next[g.id]);
       return next;
     });
   }
 
   const leaderboard = (() => {
-    const stats: Record<string, { name: string; wins: number; losses: number; pointDiff: number; played: number; scheduled: number }> = {};
+    const stats: Record<string, { name: string; wins: number; losses: number; pointDiff: number; scored: number; allowed: number; played: number; scheduled: number }> = {};
 
     if (session?.sessionFormat === "FIXED") {
       const teamName = (t: Team) => `${t.player1.name} & ${t.player2.name}`;
       for (const g of games) {
         if (!g.team1Id || !g.team2Id) continue;
-        // Initialise from any game (scheduled or played)
         if (!stats[g.team1Id]) {
           const team = session.teams.find((t) => t.id === g.team1Id);
-          stats[g.team1Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0, scheduled: 0 };
+          stats[g.team1Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, scored: 0, allowed: 0, played: 0, scheduled: 0 };
         }
         if (!stats[g.team2Id]) {
           const team = session.teams.find((t) => t.id === g.team2Id);
-          stats[g.team2Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, played: 0, scheduled: 0 };
+          stats[g.team2Id] = { name: team ? teamName(team) : "Team", wins: 0, losses: 0, pointDiff: 0, scored: 0, allowed: 0, played: 0, scheduled: 0 };
         }
         stats[g.team1Id].scheduled++;
         stats[g.team2Id].scheduled++;
@@ -263,13 +290,17 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         if (!t1Won) stats[g.team2Id].wins++; else stats[g.team2Id].losses++;
         stats[g.team1Id].pointDiff += g.team1Score - g.team2Score;
         stats[g.team2Id].pointDiff += g.team2Score - g.team1Score;
+        stats[g.team1Id].scored += g.team1Score;
+        stats[g.team1Id].allowed += g.team2Score;
+        stats[g.team2Id].scored += g.team2Score;
+        stats[g.team2Id].allowed += g.team1Score;
         stats[g.team1Id].played++;
         stats[g.team2Id].played++;
       }
     } else {
       for (const g of games) {
         for (const p of [g.team1Player1, g.team1Player2, g.team2Player1, g.team2Player2]) {
-          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, pointDiff: 0, played: 0, scheduled: 0 };
+          if (!stats[p.id]) stats[p.id] = { name: p.name, wins: 0, losses: 0, pointDiff: 0, scored: 0, allowed: 0, played: 0, scheduled: 0 };
         }
         stats[g.team1Player1.id].scheduled++;
         stats[g.team1Player2.id].scheduled++;
@@ -280,16 +311,37 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         for (const p of [g.team1Player1, g.team1Player2]) {
           if (t1Won) stats[p.id].wins++; else stats[p.id].losses++;
           stats[p.id].pointDiff += g.team1Score - g.team2Score;
+          stats[p.id].scored += g.team1Score;
+          stats[p.id].allowed += g.team2Score;
           stats[p.id].played++;
         }
         for (const p of [g.team2Player1, g.team2Player2]) {
           if (!t1Won) stats[p.id].wins++; else stats[p.id].losses++;
           stats[p.id].pointDiff += g.team2Score - g.team1Score;
+          stats[p.id].scored += g.team2Score;
+          stats[p.id].allowed += g.team1Score;
           stats[p.id].played++;
         }
       }
     }
-    return Object.values(stats).sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff);
+
+    const entries = Object.values(stats);
+    const allPlayedSame = entries.length > 0 && entries.every((e) => e.played === entries[0].played);
+
+    function perGame(val: number, played: number) { return played > 0 ? val / played : 0; }
+
+    return entries.sort((a, b) => {
+      if (allPlayedSame) {
+        return b.wins - a.wins
+          || b.pointDiff - a.pointDiff
+          || b.scored - a.scored
+          || a.allowed - b.allowed;
+      }
+      // Unequal games: normalise everything per game
+      return perGame(b.pointDiff, b.played) - perGame(a.pointDiff, a.played)
+        || perGame(b.scored, b.played) - perGame(a.scored, a.played)
+        || perGame(a.allowed, a.played) - perGame(b.allowed, b.played);
+    });
   })();
 
   const roundsMap = games.reduce<Record<number, Game[]>>((acc, g) => {
@@ -374,7 +426,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               <div className="flex flex-wrap gap-1.5 mt-1.5">
                 <button
                   onClick={isAdmin ? toggleFormat : undefined}
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-800 text-zinc-400 ${isAdmin ? "hover:bg-zinc-700 cursor-pointer" : "cursor-default"}`}
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                    session.sessionFormat === "ROTATING"
+                      ? "bg-violet-400/20 text-violet-400"
+                      : "bg-amber-400/20 text-amber-400"
+                  } ${isAdmin ? "hover:opacity-75 cursor-pointer" : "cursor-default"}`}
                 >
                   {session.sessionFormat === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
                 </button>
@@ -424,7 +480,25 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         {/* PLAYERS TAB */}
         <TabsContent value="players">
           {/* ── Rotating: gender groups grid ── */}
-          {session.sessionFormat === "ROTATING" && (
+          {session.sessionFormat === "ROTATING" && (() => {
+            const mensCourts  = session.courts.filter((c) => c.format === "MENS").length;
+            const womensCourts = session.courts.filter((c) => c.format === "WOMENS").length;
+            const mixedCourts = session.courts.filter((c) => c.format === "MIXED").length;
+            const malesPerRound   = mensCourts * 4 + mixedCourts * 2;
+            const femalesPerRound = womensCourts * 4 + mixedCourts * 2;
+
+            function idealHint(count: number, perRound: number): { text: string; perfect: boolean } | null {
+              if (perRound === 0 || count === 0) return null;
+              if (count % perRound === 0) return { text: "equal games guaranteed", perfect: true };
+              const prev = Math.floor(count / perRound) * perRound;
+              const next = prev + perRound;
+              const parts = [];
+              if (prev > 0) parts.push(prev);
+              parts.push(next);
+              return { text: `for equal games: ${parts.join(" or ")} players`, perfect: false };
+            }
+
+            return (
             <>
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
@@ -444,12 +518,18 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       .sort((a, b) => a.player.name.localeCompare(b.player.name));
                     if (group.length === 0) return null;
                     const isMale = gender === "MALE";
+                    const hint = idealHint(group.length, isMale ? malesPerRound : femalesPerRound);
                     return (
                       <div key={gender}>
                         <div className="flex items-center gap-2 mb-2">
                           <span className={`w-2 h-2 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
                           <span className="text-sm font-semibold text-zinc-200">{isMale ? "Men" : "Women"}</span>
                           <span className="text-xs text-zinc-500">{group.length}</span>
+                          {hint && (
+                            <span className={`text-xs ml-1 ${hint.perfect ? "text-lime-500" : "text-zinc-600"}`}>
+                              · {hint.text}
+                            </span>
+                          )}
                         </div>
                         <div className="grid grid-cols-4 gap-2">
                           {group.map((sp) => (
@@ -483,7 +563,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 </Button>
               )}
             </>
-          )}
+            );
+          })()}
 
           {/* ── Fixed: player roster + team builder ── */}
           {session.sessionFormat === "FIXED" && (() => {
@@ -711,27 +792,48 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {rounds.map(([roundNum, roundGames]) => {
+              {rounds.map(([roundNum, roundGames], idx) => {
                 const byes = byesForRound(roundGames);
                 const isRoundComplete = roundGames.every((g) => g.completed);
                 const isRoundEditing = roundGames.some((g) => !!scores[g.id]);
+                const isCurrent = !isRoundComplete && idx === rounds.findIndex(([, gs]) => !gs.every((g) => g.completed));
                 return (
                   <div
                     key={roundNum}
-                    className={`rounded-xl p-3 transition-opacity ${isRoundComplete ? "opacity-50" : "opacity-100"} bg-zinc-800`}
+                    className={`rounded-xl p-3 transition-opacity ${isRoundComplete && !isRoundEditing ? "opacity-50" : "opacity-100"} ${
+                      isCurrent ? "bg-zinc-800 ring-2 ring-lime-500/60" : "bg-zinc-800"
+                    }`}
                   >
                     {/* Round header */}
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 px-2 py-0.5 bg-zinc-800 rounded-full">
-                        Round {roundNum}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 px-2 py-0.5 bg-zinc-700 rounded-full">
+                          Round {roundNum}
+                        </span>
+                        {isCurrent && (
+                          <span className="text-xs font-semibold text-lime-400 px-2 py-0.5 bg-lime-500/15 rounded-full">
+                            Now
+                          </span>
+                        )}
+                      </div>
                       {isAdmin && isRoundComplete && !isRoundEditing && (
-                        <button
-                          onClick={() => editRound(roundGames)}
-                          className="text-xs text-zinc-500 hover:text-zinc-200 underline transition-colors"
-                        >
+                        <button onClick={() => editRound(roundGames)} className="text-xs text-zinc-500 hover:text-zinc-200 underline">
                           Edit
                         </button>
+                      )}
+                      {isAdmin && isRoundEditing && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => saveRound(roundGames)}
+                            disabled={savingRound === roundGames[0]?.roundNumber}
+                            className="text-xs font-semibold text-lime-400 hover:text-lime-300 disabled:opacity-50"
+                          >
+                            {savingRound === roundGames[0]?.roundNumber ? "Saving…" : "Save"}
+                          </button>
+                          <button onClick={() => cancelRound(roundGames)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                            Cancel
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -806,32 +908,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                               </div>
                             </div>
 
-                            {showInputs && (
+                            {showInputs && !isEditing && (
                               <div className="flex gap-2 mt-2.5">
                                 <Button
                                   size="sm"
                                   className="flex-1 h-8 text-xs bg-lime-500 hover:bg-lime-400 text-black font-bold"
                                   onClick={() => submitScore(game.id)}
-                                  disabled={!sc?.t1 || !sc?.t2}
+                                  disabled={!scores[game.id]?.t1 || !scores[game.id]?.t2}
                                 >
                                   Save
                                 </Button>
-                                {isEditing && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 text-xs"
-                                    onClick={() =>
-                                      setScores((prev) => {
-                                        const next = { ...prev };
-                                        delete next[game.id];
-                                        return next;
-                                      })
-                                    }
-                                  >
-                                    Cancel
-                                  </Button>
-                                )}
                               </div>
                             )}
                           </div>
@@ -865,6 +951,19 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           {leaderboard.length === 0 ? (
             <p className="text-zinc-400 text-center py-12">No scores recorded yet.</p>
           ) : (() => {
+            const allPlayedSame = leaderboard.length > 0 && leaderboard.every((e) => e.played === leaderboard[0].played);
+            const note = (
+              <div className="mb-4 px-1">
+                <p className="text-xs text-zinc-500 font-semibold mb-1">Tiebreaker order</p>
+                <ol className="text-xs text-zinc-600 flex flex-col gap-0.5 list-none">
+                  {allPlayedSame && <li className="flex items-center gap-1.5"><span className="text-zinc-700">1.</span> Wins</li>}
+                  <li className="flex items-center gap-1.5"><span className="text-zinc-700">{allPlayedSame ? "2." : "1."}</span> Point differential{!allPlayedSame && <span className="italic text-zinc-700"> per game</span>}</li>
+                  <li className="flex items-center gap-1.5"><span className="text-zinc-700">{allPlayedSame ? "3." : "2."}</span> Points scored{!allPlayedSame && <span className="italic text-zinc-700"> per game</span>}</li>
+                  <li className="flex items-center gap-1.5"><span className="text-zinc-700">{allPlayedSame ? "4." : "3."}</span> Points allowed (fewer is better){!allPlayedSame && <span className="italic text-zinc-700"> per game</span>}</li>
+                </ol>
+                {!allPlayedSame && <p className="text-xs text-zinc-700 mt-1 italic">Game counts differ — wins excluded as a metric.</p>}
+              </div>
+            );
             const hasMens = session.courts.some((c) => c.format === "MENS");
             const hasWomens = session.courts.some((c) => c.format === "WOMENS");
             const hasMixed = session.courts.some((c) => c.format === "MIXED");
@@ -996,6 +1095,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               const femaleEntries = leaderboard.filter((e) => getEntryGender(e.name) === "FEMALE");
               return (
                 <div className="flex flex-col gap-6">
+                  {note}
                   {maleEntries.length > 0 && (
                     <div>
                       <div className="flex items-center gap-1.5 mb-2">
@@ -1024,6 +1124,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
             return (
               <div className="flex flex-col gap-2">
+                {note}
                 {leaderboard.map((entry, i) => renderEntry(entry, i))}
               </div>
             );
@@ -1058,6 +1159,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         sessionId={id}
         sessionFormat={session.sessionFormat}
         courts={session.courts}
+        players={session.sessionPlayers.map((sp) => ({ gender: sp.player.gender }))}
         onGenerated={() => { setGenerateOpen(false); loadGames(); }}
       />
 

@@ -518,13 +518,13 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
                     <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${color}`}>{label}</p>
                     {pool.length < 8
                       ? <p className="text-zinc-500 text-xs italic">Need at least 8 players.</p>
-                      : <div className="flex flex-col gap-1.5">
+                      : <div className="grid grid-cols-2 gap-2">
                           {[0,1,2,3].map((i) => (
                             <div key={i} className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-zinc-900 border border-zinc-700">
-                              <span className="text-xs text-zinc-500 w-14 shrink-0 self-start pt-0.5">Team {i + 1}</span>
-                              <div className="flex flex-col gap-0.5">
-                                <span className={`text-sm font-medium ${nameColor}`}>#{i + 1} {pool[i].name}</span>
-                                <span className={`text-sm font-medium ${nameColor}`}>#{8 - i} {pool[7 - i].name}</span>
+                              <span className="text-xs text-zinc-500 w-8 shrink-0 self-start pt-0.5">T{i + 1}</span>
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className={`text-sm font-medium truncate ${nameColor}`}>#{i + 1} {pool[i].name}</span>
+                                <span className={`text-sm font-medium truncate ${nameColor}`}>#{8 - i} {pool[7 - i].name}</span>
                               </div>
                             </div>
                           ))}
@@ -535,13 +535,13 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
             ) : (
               topMen.length < 4 || topWomen.length < 8
                 ? <p className="text-zinc-500 text-xs italic">Need at least 4 men and 8 women in the session.</p>
-                : <div className="flex flex-col gap-1.5">
+                : <div className="grid grid-cols-2 gap-2">
                     {[0,1,2,3].map((i) => (
                       <div key={i} className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-zinc-900 border border-zinc-700">
-                        <span className="text-xs text-zinc-500 w-14 shrink-0 self-start pt-0.5">Team {i + 1}</span>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm text-sky-300 font-medium">#{i + 1} {topMen[i].name}</span>
-                          <span className="text-sm text-pink-300 font-medium">#{8 - i} {topWomen[7 - i].name}</span>
+                        <span className="text-xs text-zinc-500 w-8 shrink-0 self-start pt-0.5">T{i + 1}</span>
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-sm text-sky-300 font-medium truncate">#{i + 1} {topMen[i].name}</span>
+                          <span className="text-sm text-pink-300 font-medium truncate">#{8 - i} {topWomen[7 - i].name}</span>
                         </div>
                       </div>
                     ))}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PickleballLogo } from "@/components/PickleballLogo";
 import { AdminProvider } from "@/components/AdminProvider";
 import { AdminToggle } from "@/components/AdminToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const nunito = Nunito({
   subsets: ["latin"],
@@ -20,6 +21,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')}catch(e){}` }} />
+      </head>
       <body className={`${nunito.variable} font-sans bg-background text-foreground min-h-screen`}>
         <AdminProvider>
           <nav className="bg-zinc-950 border-b border-zinc-800 sticky top-0 z-10">
@@ -39,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     Roster
                   </Link>
                 </div>
+                <ThemeToggle />
                 <AdminToggle />
               </div>
             </div>

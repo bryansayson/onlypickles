@@ -76,34 +76,41 @@ export default function RosterPage() {
         <p className="text-zinc-500 text-center py-12">No players yet.</p>
       )}
 
-      <div className="flex flex-col gap-2">
-        {players.map((player) => (
-          <div
-            key={player.id}
-            className="flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800"
-          >
-            <div className="flex items-center gap-3">
-              <span className="font-semibold text-white">{player.name}</span>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  player.gender === "MALE"
-                    ? "bg-sky-900/60 text-sky-300"
-                    : "bg-pink-900/60 text-pink-300"
-                }`}
-              >
-                {player.gender === "MALE" ? "M" : "F"}
-              </span>
+      <div className="flex flex-col gap-6">
+        {(["MALE", "FEMALE"] as const).map((gender) => {
+          const group = players
+            .filter((p) => p.gender === gender)
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (group.length === 0) return null;
+          const isMale = gender === "MALE";
+          return (
+            <div key={gender}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`w-2 h-2 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
+                <span className="text-sm font-semibold text-zinc-300">{isMale ? "Men" : "Women"}</span>
+                <span className="text-xs text-zinc-500">{group.length}</span>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {group.map((player) => (
+                  <div
+                    key={player.id}
+                    className={`relative rounded-lg border px-2 py-2.5 flex flex-col items-center gap-1 text-center ${
+                      isMale ? "border-sky-900 bg-sky-950" : "border-pink-900 bg-pink-950"
+                    }`}
+                  >
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDelete(player.id)}
+                        className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
+                      >×</button>
+                    )}
+                    <span className="text-xs font-medium leading-tight break-words w-full pt-1">{player.name}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            {isAdmin && (
-              <button
-                onClick={() => handleDelete(player.id)}
-                className="text-zinc-600 hover:text-red-400 text-sm transition-colors"
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <Dialog open={isAdmin && open} onOpenChange={setOpen}>
