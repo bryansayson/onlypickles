@@ -60,8 +60,8 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
     e.preventDefault();
     if (!date) return;
     setLoading(true);
-    const datetime = new Date(`${date}T${startTime}`).toISOString().replace("Z", "");
-    const endDatetime = endTime ? new Date(`${date}T${endTime}`).toISOString().replace("Z", "") : null;
+    const datetime = new Date(`${date}T${startTime}`).toISOString().replace("Z", "+00:00");
+    const endDatetime = endTime ? new Date(`${date}T${endTime}`).toISOString().replace("Z", "+00:00") : null;
     await fetch("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

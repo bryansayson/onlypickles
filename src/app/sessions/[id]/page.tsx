@@ -151,8 +151,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        date: start.toISOString().replace("Z", ""),
-        endTime: end ? end.toISOString().replace("Z", "") : null,
+        date: start.toISOString().replace("Z", "+00:00"),
+        endTime: end ? end.toISOString().replace("Z", "+00:00") : null,
       }),
     });
     if (!res.ok) {
