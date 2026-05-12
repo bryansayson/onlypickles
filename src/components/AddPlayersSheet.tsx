@@ -71,31 +71,34 @@ export function AddPlayersSheet({ open, onClose, sessionId, existingPlayerIds, o
         ) : (
           <>
             <p className="text-xs text-zinc-500 mb-3">Tap to select players</p>
-            <div className="flex flex-col gap-2 overflow-y-auto max-h-[50vh] pb-4">
-              {available.map((player) => (
-                <button
-                  key={player.id}
-                  onClick={() => toggle(player.id)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
-                    selected.has(player.id)
-                      ? "border-lime-500 bg-lime-950"
-                      : "border-zinc-700 bg-zinc-900"
-                  }`}
-                >
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      player.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"
+            <div className="flex flex-col gap-2 overflow-y-auto max-h-[50vh] pb-4 overscroll-contain">
+              {available.map((player) => {
+                const isSelected = selected.has(player.id);
+                return (
+                  <button
+                    key={player.id}
+                    onPointerDown={() => toggle(player.id)}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-lg border text-left select-none touch-manipulation ${
+                      isSelected
+                        ? "border-lime-500 bg-lime-950 active:bg-lime-900"
+                        : "border-zinc-700 bg-zinc-900 active:bg-zinc-800"
                     }`}
-                  />
-                  <span className="font-medium text-white">{player.name}</span>
-                  <span className="ml-auto text-xs text-zinc-500">
-                    {player.gender === "MALE" ? "M" : "F"}
-                  </span>
-                  {selected.has(player.id) && (
-                    <span className="text-lime-400 text-sm">✓</span>
-                  )}
-                </button>
-              ))}
+                  >
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                        player.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"
+                      }`}
+                    />
+                    <span className="font-medium text-white flex-1">{player.name}</span>
+                    <span className="text-xs text-zinc-500">
+                      {player.gender === "MALE" ? "M" : "F"}
+                    </span>
+                    {isSelected && (
+                      <span className="text-lime-400 text-sm">✓</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
             <Button
               onClick={handleAdd}
