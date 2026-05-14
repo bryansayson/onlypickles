@@ -15,7 +15,7 @@ import { CreateTeamDialog } from "@/components/CreateTeamDialog";
 import { AddOverrideDialog } from "@/components/AddOverrideDialog";
 import { MedalRoundTab } from "@/components/MedalRoundTab";
 import { MatchupDisplay } from "@/components/MatchupDisplay";
-import { GameCard, formatColor } from "@/components/GameCard";
+import { GameCard, formatColor, formatLabel } from "@/components/GameCard";
 import {
   Select,
   SelectContent,
@@ -33,7 +33,7 @@ interface Player {
 interface Court {
   id: string;
   number: number;
-  format: "MIXED" | "MENS" | "WOMENS";
+  format: "MIXED" | "MENS" | "WOMENS" | "ANY";
 }
 
 interface SessionPlayer {
@@ -92,12 +92,6 @@ interface Game {
   court: Court;
 }
 
-const formatLabel: Record<string, string> = {
-  MIXED: "Mixed",
-  MENS: "Men's",
-  WOMENS: "Women's",
-  ANY: "Any",
-};
 
 
 export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -1034,7 +1028,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                           <SelectItem value="MIXED">Mixed</SelectItem>
                           <SelectItem value="MENS">Men&apos;s</SelectItem>
                           <SelectItem value="WOMENS">Women&apos;s</SelectItem>
-                          <SelectItem value="ANY">Any</SelectItem>
+                          <SelectItem value="ANY">Open</SelectItem>
                         </SelectContent>
                       </Select>
                       {isAdmin && (

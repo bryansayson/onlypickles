@@ -11,7 +11,7 @@ import { useAdmin } from "@/components/AdminProvider";
 interface Court {
   id: string;
   number: number;
-  format: "MIXED" | "MENS" | "WOMENS";
+  format: "MIXED" | "MENS" | "WOMENS" | "ANY";
 }
 
 interface Session {
@@ -27,12 +27,14 @@ const formatLabel: Record<string, string> = {
   MIXED: "Mixed",
   MENS: "Men's",
   WOMENS: "Women's",
+  ANY: "Open",
 };
 
 const formatColor: Record<string, string> = {
-  MIXED: "bg-purple-900/50 text-purple-300",
-  MENS:  "bg-sky-900/50 text-sky-300",
-  WOMENS:"bg-pink-900/50 text-pink-300",
+  MIXED:  "bg-purple-900/50 text-purple-300",
+  MENS:   "bg-sky-900/50 text-sky-300",
+  WOMENS: "bg-pink-900/50 text-pink-300",
+  ANY:    "bg-emerald-900/50 text-emerald-300",
 };
 
 function SessionCard({ session, isAdmin, onDelete }: {

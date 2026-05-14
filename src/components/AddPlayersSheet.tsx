@@ -54,9 +54,12 @@ export function AddPlayersSheet({ open, onClose, sessionId, existingPlayerIds, o
   }, [open]);
 
   const available = players.filter((p) => !existingPlayerIds.includes(p.id));
-  const filtered = query.trim()
+  const filtered = (query.trim()
     ? available.filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
-    : available;
+    : available
+  ).sort((a, b) => a.name.localeCompare(b.name));
+  const males = filtered.filter((p) => p.gender === "MALE");
+  const females = filtered.filter((p) => p.gender === "FEMALE");
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -121,28 +124,40 @@ export function AddPlayersSheet({ open, onClose, sessionId, existingPlayerIds, o
               {query ? "No players match your search." : "All roster players are already in this session."}
             </p>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {filtered.map((player) => {
-                const isSelected = selected.has(player.id);
-                const isMale = player.gender === "MALE";
+            <div className="flex flex-col gap-4">
+              {([{ group: males, isMale: true }, { group: females, isMale: false }] as const).map(({ group, isMale }) => {
+                if (group.length === 0) return null;
                 return (
-                  <button
-                    key={player.id}
-                    onClick={() => toggle(player.id)}
-                    className={`relative flex flex-col items-center gap-1 px-2 py-3 rounded-xl border text-center select-none touch-manipulation transition-colors ${
-                      isSelected
-                        ? "border-lime-500 bg-lime-950"
-                        : isMale
-                          ? "border-sky-900 bg-sky-950 active:bg-sky-900"
-                          : "border-pink-900 bg-pink-950 active:bg-pink-900"
-                    }`}
-                  >
-                    {isSelected && (
-                      <span className="absolute top-1.5 right-1.5 text-lime-400 text-xs leading-none">✓</span>
-                    )}
-                    <span className={`w-1.5 h-1.5 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
-                    <span className="text-xs font-medium leading-tight break-words w-full">{player.name}</span>
-                  </button>
+                  <div key={isMale ? "male" : "female"}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{isMale ? "Men" : "Women"}</span>
+                      <span className="text-xs text-zinc-600">{group.length}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {group.map((player) => {
+                        const isSelected = selected.has(player.id);
+                        return (
+                          <button
+                            key={player.id}
+                            onClick={() => toggle(player.id)}
+                            className={`relative flex flex-col items-center gap-1 px-2 py-3 rounded-xl border text-center select-none touch-manipulation transition-colors ${
+                              isSelected
+                                ? "border-lime-500 bg-lime-950"
+                                : isMale
+                                  ? "border-sky-900 bg-sky-950 active:bg-sky-900"
+                                  : "border-pink-900 bg-pink-950 active:bg-pink-900"
+                            }`}
+                          >
+                            {isSelected && (
+                              <span className="absolute top-1.5 right-1.5 text-lime-400 text-xs leading-none">✓</span>
+                            )}
+                            <span className="text-xs font-medium leading-tight break-words w-full">{player.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>

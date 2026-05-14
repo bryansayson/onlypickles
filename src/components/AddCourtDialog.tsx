@@ -15,7 +15,7 @@ const options: { value: CourtFormat; label: string; description: string; color: 
   { value: "MIXED", label: "Mixed", description: "1 man + 1 woman per team", color: "border-purple-300 bg-purple-50 text-purple-700" },
   { value: "MENS", label: "Men's", description: "Men's doubles only", color: "border-blue-300 bg-blue-50 text-blue-700" },
   { value: "WOMENS", label: "Women's", description: "Women's doubles only", color: "border-pink-300 bg-pink-50 text-pink-700" },
-  { value: "ANY", label: "Any", description: "Any format — mixed, men's, or women's", color: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+  { value: "ANY", label: "Open", description: "Any format — mixed, men's, or women's", color: "border-emerald-300 bg-emerald-50 text-emerald-700" },
 ];
 
 interface Props {

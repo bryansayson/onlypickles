@@ -10,6 +10,13 @@ export const formatColor: Record<string, string> = {
   ANY:    "bg-emerald-900/50 text-emerald-300",
 };
 
+export const formatLabel: Record<string, string> = {
+  MIXED:  "Mixed",
+  MENS:   "Men's",
+  WOMENS: "Women's",
+  ANY:    "Open",
+};
+
 const podColors = [
   "bg-violet-900/50 text-violet-300",
   "bg-amber-900/50 text-amber-300",
@@ -30,7 +37,7 @@ interface ScoreEntry {
 }
 
 interface Props {
-  courtFormat: "MIXED" | "MENS" | "WOMENS";
+  courtFormat: "MIXED" | "MENS" | "WOMENS" | "ANY";
   courtNumber?: number;
   /** Optional — shown as a small label beside the court badge */
   roundNumber?: number;
@@ -134,7 +141,7 @@ export function GameCard({
           )}
           {courtNumber !== undefined && (
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[courtFormat]}`}>
-              Court {courtNumber}
+              C{courtNumber} {formatLabel[courtFormat]}
             </span>
           )}
           {podName && (
