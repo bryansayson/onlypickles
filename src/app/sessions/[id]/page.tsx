@@ -119,6 +119,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [podPickerOpen, setPodPickerOpen] = useState<string | null>(null);
   const [editingPodId, setEditingPodId] = useState<string | null>(null);
   const [podNameInput, setPodNameInput] = useState("");
+  const [selectedPodTeamId, setSelectedPodTeamId] = useState<string | null>(null);
 
   async function loadSession() {
     const res = await fetch(`/api/sessions/${id}`);
@@ -799,7 +800,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                   <p className="text-zinc-500 text-sm text-center py-4">No teams yet. Pair players up.</p>
                 ) : (() => {
                   // Shared team card renderer
-                  function TeamCard({ team, n }: { team: Team; n: number }) {
+                  function TeamCard({ team, n, inPod }: { team: Team; n: number; inPod?: boolean }) {
                     const isMens = team.player1.gender === "MALE" && team.player2.gender === "MALE";
                     const isWomens = team.player1.gender === "FEMALE" && team.player2.gender === "FEMALE";
                     const border = isMens ? "border-sky-900" : isWomens ? "border-pink-900" : "border-purple-900";
@@ -808,7 +809,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       <div className={`rounded-xl border ${border} ${bg} px-3 py-2.5`}>
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-semibold text-zinc-500">Team {n}</span>
-                          {isAdmin && (
+                          {isAdmin && !inPod && (
                             <button onClick={() => deleteTeam(team.id)} className="text-zinc-600 hover:text-red-400 text-base leading-none">×</button>
                           )}
                         </div>
@@ -883,17 +884,25 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             </div>
                             {podTeams.length > 0 ? (
                               <div className="grid grid-cols-2 gap-2">
-                                {podTeams.map(team => (
-                                  <div key={team.id} className="relative">
-                                    <TeamCard team={team} n={++globalIdx} />
-                                    {isAdmin && (
-                                      <button onClick={() => assignTeamToPod(team.id, null)}
-                                        className="absolute top-2 right-7 text-zinc-600 hover:text-orange-400 text-xs leading-none"
-                                        title="Remove from pod"
-                                      >↑</button>
-                                    )}
-                                  </div>
-                                ))}
+                                {podTeams.map(team => {
+                                  const isSelected = selectedPodTeamId === team.id;
+                                  return (
+                                    <div
+                                      key={team.id}
+                                      className="relative"
+                                      onClick={isAdmin ? () => setSelectedPodTeamId(isSelected ? null : team.id) : undefined}
+                                    >
+                                      <TeamCard team={team} n={++globalIdx} inPod />
+                                      {isAdmin && isSelected && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); assignTeamToPod(team.id, null); setSelectedPodTeamId(null); }}
+                                          className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-zinc-700 hover:bg-red-500 text-zinc-300 hover:text-white text-xs leading-none"
+                                          title="Remove from pod"
+                                        >×</button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <p className="text-xs text-zinc-600 italic mb-1">No teams assigned.</p>

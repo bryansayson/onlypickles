@@ -113,10 +113,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const hasPodConfig = podTeamGroups.length > 0;
 
     // For sessions without pods, fall back to the global mode setting.
-    const globalMaxMatchups = hasPodConfig ? 1 : mode === "double" ? 2 : 1;
+    const globalMaxMatchups = hasPodConfig ? 1 : mode === "triple" ? 3 : mode === "double" ? 2 : 1;
     const numRounds = hasPodConfig
-      ? roundsForSingle * 2 + 10  // generous cap; scheduler self-terminates
-      : mode === "double" ? roundsForSingle * 2 : roundsForSingle;
+      ? roundsForSingle * 3 + 10  // generous cap; scheduler self-terminates
+      : mode === "triple" ? roundsForSingle * 3 : mode === "double" ? roundsForSingle * 2 : roundsForSingle;
 
     const schedule = hasPodConfig
       ? generateFixedPodSchedules(

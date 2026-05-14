@@ -84,12 +84,12 @@ export function GenerateDialog({
   unassignedTeamCount = 0,
   onGenerated,
 }: Props) {
-  const [rrType, setRrType] = useState<"single" | "double">("single");
+  const [rrType, setRrType] = useState<"single" | "double" | "triple">("single");
   const [selectedRounds, setSelectedRounds] = useState<number | null>(null);
   const [selectedMensRounds, setSelectedMensRounds] = useState<number | null>(null);
   const [selectedWomensRounds, setSelectedWomensRounds] = useState<number | null>(null);
   // Per-group matchups for FIXED+pods: key is podId or "unassigned"
-  const [groupMatchups, setGroupMatchups] = useState<Record<string, 1 | 2>>({});
+  const [groupMatchups, setGroupMatchups] = useState<Record<string, 1 | 2 | 3>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -137,10 +137,10 @@ export function GenerateDialog({
       ]
     : [];
 
-  function getMatchup(key: string): 1 | 2 {
+  function getMatchup(key: string): 1 | 2 | 3 {
     return groupMatchups[key] ?? 1;
   }
-  function setMatchup(key: string, v: 1 | 2) {
+  function setMatchup(key: string, v: 1 | 2 | 3) {
     setGroupMatchups((prev) => ({ ...prev, [key]: v }));
   }
 
@@ -216,7 +216,7 @@ export function GenerateDialog({
                       </div>
                     </div>
                     <div className="flex shrink-0 rounded-md overflow-hidden border border-zinc-700">
-                      {([1, 2] as const).map((m) => (
+                      {([1, 2, 3] as const).map((m) => (
                         <button
                           key={m}
                           type="button"
@@ -227,7 +227,7 @@ export function GenerateDialog({
                               : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
                           }`}
                         >
-                          {m === 1 ? "Single" : "Double"}
+                          {m === 1 ? "Single" : m === 2 ? "Double" : "Triple"}
                         </button>
                       ))}
                     </div>
@@ -235,9 +235,9 @@ export function GenerateDialog({
                 ))}
               </div>
             ) : (
-              /* Global single/double for no-pod sessions */
+              /* Global single/double/triple for no-pod sessions */
               <div className="flex flex-col gap-2">
-                {(["single", "double"] as const).map((type) => (
+                {(["single", "double", "triple"] as const).map((type) => (
                   <button
                     key={type}
                     type="button"
@@ -252,7 +252,9 @@ export function GenerateDialog({
                     <p className={`text-xs mt-0.5 ${rrType === type ? "text-black/60" : "text-zinc-600"}`}>
                       {type === "single"
                         ? "Every team faces every other team once"
-                        : "Every team faces every other team twice"}
+                        : type === "double"
+                        ? "Every team faces every other team twice"
+                        : "Every team faces every other team three times"}
                     </p>
                   </button>
                 ))}
