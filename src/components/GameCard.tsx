@@ -10,6 +10,15 @@ export const formatColor: Record<string, string> = {
   ANY:    "bg-emerald-900/50 text-emerald-300",
 };
 
+const podColors = [
+  "bg-violet-900/50 text-violet-300",
+  "bg-amber-900/50 text-amber-300",
+  "bg-teal-900/50 text-teal-300",
+  "bg-rose-900/50 text-rose-300",
+  "bg-indigo-900/50 text-indigo-300",
+  "bg-orange-900/50 text-orange-300",
+];
+
 interface ScoreEntry {
   t1: string;
   t2: string;
@@ -34,6 +43,8 @@ interface Props {
   highlightName?: string;
   /** Pod this game belongs to */
   podName?: string;
+  /** Index of the pod in the session's pod list — determines badge color */
+  podIndex?: number;
   /** Tints the card background for the leaderboard view */
   highlightResult?: "won" | "lost";
   /** Colours the winning team name lime (schedule tab) */
@@ -98,6 +109,7 @@ export function GameCard({
   completed,
   highlightName,
   podName,
+  podIndex,
   highlightResult,
   highlightWinner,
   scoreEntry,
@@ -126,7 +138,11 @@ export function GameCard({
             </span>
           )}
           {podName && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-700 text-zinc-300">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              podIndex !== undefined
+                ? podColors[podIndex % podColors.length]
+                : "bg-zinc-700 text-zinc-300"
+            }`}>
               {podName}
             </span>
           )}

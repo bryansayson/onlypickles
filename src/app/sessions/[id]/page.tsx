@@ -1167,15 +1167,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         const showInputs = isAdmin && (isEditing || !game.completed);
 
                         // Determine pod from players (rotating) or team (fixed)
-                        const gamePodName = (() => {
+                        const gamePodIndex = (() => {
                           if (session.sessionFormat === "FIXED" && game.team1Id) {
-                            return session.pods.find((p) => p.teams.some((t) => t.id === game.team1Id))?.name;
+                            return session.pods.findIndex((p) => p.teams.some((t) => t.id === game.team1Id));
                           }
                           const pid = game.team1Player1.id;
-                          return session.pods.find((p) =>
+                          return session.pods.findIndex((p) =>
                             p.sessionPlayers.some((sp) => sp.playerId === pid)
-                          )?.name;
+                          );
                         })();
+                        const gamePodName = gamePodIndex >= 0 ? session.pods[gamePodIndex].name : undefined;
 
                         return (
                           <GameCard
@@ -1183,6 +1184,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             courtFormat={game.court.format}
                             courtNumber={game.court.number}
                             podName={gamePodName}
+                            podIndex={gamePodIndex >= 0 ? gamePodIndex : undefined}
                             team1Names={[`${game.team1Player1.name} & ${game.team1Player2.name}`]}
                             team2Names={[`${game.team2Player1.name} & ${game.team2Player2.name}`]}
                             team1Score={game.team1Score}
@@ -1370,6 +1372,71 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                   </div>
                 );
             };
+
+            const podDotColors = [
+              { dot: "bg-violet-400", text: "text-violet-400" },
+              { dot: "bg-amber-400",  text: "text-amber-400"  },
+              { dot: "bg-teal-400",   text: "text-teal-400"   },
+              { dot: "bg-rose-400",   text: "text-rose-400"   },
+              { dot: "bg-indigo-400", text: "text-indigo-400" },
+              { dot: "bg-orange-400", text: "text-orange-400" },
+            ];
+
+            function getEntryPodIndex(entry: typeof leaderboard[0]): number {
+              if (session!.sessionFormat === "FIXED") {
+                const team = session!.teams.find(
+                  (t) => `${t.player1.name} & ${t.player2.name}` === entry.name
+                );
+                if (!team) return -1;
+                return session!.pods.findIndex((p) => p.teams.some((t) => t.id === team.id));
+              }
+              const sp = session!.sessionPlayers.find((sp) => sp.player.name === entry.name);
+              if (!sp) return -1;
+              return session!.pods.findIndex((p) =>
+                p.sessionPlayers.some((psp) => psp.playerId === sp.playerId)
+              );
+            }
+
+            const hasPods = session!.pods.length > 0 && leaderboard.some((e) => getEntryPodIndex(e) >= 0);
+
+            if (hasPods) {
+              return (
+                <div className="flex flex-col gap-6">
+                  {note}
+                  {session!.pods.map((pod, podIdx) => {
+                    const podEntries = leaderboard.filter((e) => getEntryPodIndex(e) === podIdx);
+                    if (podEntries.length === 0) return null;
+                    const c = podDotColors[podIdx % podDotColors.length];
+                    return (
+                      <div key={pod.id}>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className={`w-2 h-2 rounded-full ${c.dot}`} />
+                          <span className={`text-xs font-semibold uppercase tracking-wider ${c.text}`}>{pod.name}</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {podEntries.map((entry, i) => renderEntry(entry, i))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {(() => {
+                    const unassigned = leaderboard.filter((e) => getEntryPodIndex(e) === -1);
+                    if (unassigned.length === 0) return null;
+                    return (
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="w-2 h-2 rounded-full bg-zinc-500" />
+                          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Unassigned</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {unassigned.map((entry, i) => renderEntry(entry, i))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            }
 
             if (showSplit) {
               const maleEntries = leaderboard.filter((e) => getEntryGender(e.name) === "MALE");
