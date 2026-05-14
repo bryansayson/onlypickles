@@ -3,16 +3,13 @@ import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { podId } = await request.json();
-  const updated = await prisma.team.update({
-    where: { id },
-    data: { podId: podId ?? null },
-  });
-  return NextResponse.json(updated);
+  const { name } = await request.json();
+  const pod = await prisma.pod.update({ where: { id }, data: { name: name.trim() } });
+  return NextResponse.json(pod);
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await prisma.team.delete({ where: { id } });
+  await prisma.pod.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

@@ -10,6 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       sessionPlayers: { include: { player: true } },
       teams: { include: { player1: true, player2: true } },
       playerOverrides: { include: { player1: true, player2: true } },
+      pods: { include: { sessionPlayers: true, teams: true }, orderBy: { name: "asc" } },
     },
   });
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });

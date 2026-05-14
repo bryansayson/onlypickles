@@ -55,6 +55,13 @@ interface PlayerOverride {
   type: "MUST_PARTNER" | "MUST_NOT_PARTNER";
 }
 
+interface Pod {
+  id: string;
+  name: string;
+  sessionPlayers: { id: string; playerId: string }[];
+  teams: { id: string }[];
+}
+
 interface Session {
   id: string;
   name: string | null;
@@ -66,6 +73,7 @@ interface Session {
   sessionPlayers: SessionPlayer[];
   teams: Team[];
   playerOverrides: PlayerOverride[];
+  pods: Pod[];
 }
 
 interface Game {
@@ -88,6 +96,7 @@ const formatLabel: Record<string, string> = {
   MIXED: "Mixed",
   MENS: "Men's",
   WOMENS: "Women's",
+  ANY: "Any",
 };
 
 
@@ -107,6 +116,9 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [addOverrideOpen, setAddOverrideOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [podPickerOpen, setPodPickerOpen] = useState<string | null>(null);
+  const [editingPodId, setEditingPodId] = useState<string | null>(null);
+  const [podNameInput, setPodNameInput] = useState("");
 
   async function loadSession() {
     const res = await fetch(`/api/sessions/${id}`);
@@ -205,6 +217,57 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
   async function deleteTeam(teamId: string) {
     await fetch(`/api/teams/${teamId}`, { method: "DELETE" });
+    loadSession();
+  }
+
+  async function createPod() {
+    const existingCount = session?.pods?.length ?? 0;
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const name = `Pod ${letters[existingCount] ?? (existingCount + 1)}`;
+    const res = await fetch(`/api/sessions/${id}/pods`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "Failed to create pod");
+      return;
+    }
+    await loadSession();
+  }
+
+  async function savePodName(podId: string) {
+    if (!podNameInput.trim()) return;
+    await fetch(`/api/pods/${podId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: podNameInput }),
+    });
+    setEditingPodId(null);
+    await loadSession();
+  }
+
+  async function deletePod(podId: string) {
+    await fetch(`/api/pods/${podId}`, { method: "DELETE" });
+    loadSession();
+  }
+
+  async function assignPlayerToPod(sessionPlayerId: string, podId: string | null) {
+    await fetch(`/api/session-players/${sessionPlayerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ podId }),
+    });
+    loadSession();
+  }
+
+  async function assignTeamToPod(teamId: string, podId: string | null) {
+    await fetch(`/api/teams/${teamId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ podId }),
+    });
     loadSession();
   }
 
@@ -557,6 +620,131 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                   })}
                 </div>
               )}
+              {/* ── Pods section (rotating mode) ── */}
+              {isAdmin && session.sessionPlayers.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-sm font-semibold text-zinc-200">Pods</span>
+                      <span className="text-xs text-zinc-500 ml-2">optional sub-groups</span>
+                    </div>
+                    <button
+                      onClick={createPod}
+                      className="text-xs text-lime-400 hover:text-lime-300 font-medium"
+                    >
+                      + Add Pod
+                    </button>
+                  </div>
+                  {session.pods.length === 0 ? (
+                    <p className="text-xs text-zinc-600 italic">No pods — everyone plays everyone.</p>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {session.pods.map((pod) => {
+                        const assignedSps = session.sessionPlayers.filter((sp) =>
+                          pod.sessionPlayers.some((psp) => psp.id === sp.id)
+                        );
+                        const unassignedSps = session.sessionPlayers.filter(
+                          (sp) => !session.pods.some((p) => p.sessionPlayers.some((psp) => psp.id === sp.id))
+                        );
+                        return (
+                          <div key={pod.id} className="rounded-xl border border-zinc-700 bg-zinc-900 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              {editingPodId === pod.id ? (
+                                <input
+                                  autoFocus
+                                  value={podNameInput}
+                                  onChange={(e) => setPodNameInput(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === "Enter") savePodName(pod.id); if (e.key === "Escape") setEditingPodId(null); }}
+                                  onBlur={() => savePodName(pod.id)}
+                                  className="text-sm font-semibold bg-transparent border-b border-zinc-600 outline-none text-white flex-1 mr-2"
+                                />
+                              ) : (
+                                <span
+                                  className={`text-sm font-semibold text-zinc-200 ${isAdmin ? "cursor-pointer hover:text-white" : ""}`}
+                                  onClick={isAdmin ? () => { setPodNameInput(pod.name); setEditingPodId(pod.id); } : undefined}
+                                >{pod.name}</span>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-zinc-500">{assignedSps.length} players</span>
+                                <button
+                                  onClick={() => deletePod(pod.id)}
+                                  className="text-zinc-600 hover:text-red-400 text-base leading-none"
+                                >×</button>
+                              </div>
+                            </div>
+                            {assignedSps.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5 mb-2">
+                                {assignedSps.map((sp) => {
+                                  const isMale = sp.player.gender === "MALE";
+                                  return (
+                                    <span
+                                      key={sp.id}
+                                      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                                        isMale ? "bg-sky-900/60 text-sky-300 border border-sky-800" : "bg-pink-900/60 text-pink-300 border border-pink-800"
+                                      }`}
+                                    >
+                                      {sp.player.name}
+                                      <button
+                                        onClick={() => assignPlayerToPod(sp.id, null)}
+                                        className="text-zinc-500 hover:text-red-400 leading-none ml-0.5"
+                                      >×</button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-zinc-600 italic mb-2">No players assigned.</p>
+                            )}
+                            {unassignedSps.length > 0 && (
+                              <div>
+                                {podPickerOpen === pod.id ? (
+                                  <div className="mt-1">
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {unassignedSps.map((sp) => {
+                                        const isMale = sp.player.gender === "MALE";
+                                        return (
+                                          <button
+                                            key={sp.id}
+                                            onClick={async () => {
+                                              await assignPlayerToPod(sp.id, pod.id);
+                                              // keep picker open if more unassigned
+                                            }}
+                                            className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                                              isMale
+                                                ? "bg-sky-950 text-sky-400 border border-sky-800 hover:bg-sky-900"
+                                                : "bg-pink-950 text-pink-400 border border-pink-800 hover:bg-pink-900"
+                                            }`}
+                                          >
+                                            + {sp.player.name}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    <button
+                                      onClick={() => setPodPickerOpen(null)}
+                                      className="text-xs text-zinc-500 hover:text-zinc-300 mt-1.5"
+                                    >
+                                      Done
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setPodPickerOpen(pod.id)}
+                                    className="text-xs text-lime-500 hover:text-lime-400 font-medium"
+                                  >
+                                    + Add players
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isAdmin && (
                 <Button
                   onClick={() => setGenerateOpen(true)}
@@ -592,76 +780,163 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                   )}
                 </div>
 
-                {/* Teams */}
+                {/* Teams header */}
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-semibold text-zinc-200">Teams ({session.teams.length})</span>
-                  {isAdmin && (
-                    <Button onClick={() => setCreateTeamOpen(true)} size="sm" variant="outline" disabled={unteamed.length < 2}>
-                      + Create Team
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isAdmin && session.teams.length > 0 && (
+                      <button onClick={createPod} className="text-xs text-zinc-500 hover:text-lime-400 font-medium">+ Add Pod</button>
+                    )}
+                    {isAdmin && (
+                      <Button onClick={() => setCreateTeamOpen(true)} size="sm" variant="outline" disabled={unteamed.length < 2}>
+                        + Create Team
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {session.teams.length === 0 ? (
                   <p className="text-zinc-500 text-sm text-center py-4">No teams yet. Pair players up.</p>
                 ) : (() => {
-                  type TeamPool = { label: string; dot: string; border: string; bg: string; teams: typeof session.teams };
-                  const pools: TeamPool[] = [
-                    {
-                      label: "Men's",
-                      dot: "bg-sky-400", border: "border-sky-900", bg: "bg-sky-950",
-                      teams: session.teams.filter(t => t.player1.gender === "MALE" && t.player2.gender === "MALE"),
-                    },
-                    {
-                      label: "Women's",
-                      dot: "bg-pink-400", border: "border-pink-900", bg: "bg-pink-950",
-                      teams: session.teams.filter(t => t.player1.gender === "FEMALE" && t.player2.gender === "FEMALE"),
-                    },
-                    {
-                      label: "Mixed",
-                      dot: "bg-purple-400", border: "border-purple-900", bg: "bg-purple-950",
-                      teams: session.teams.filter(t => t.player1.gender !== t.player2.gender),
-                    },
-                  ].filter(pool => pool.teams.length > 0);
+                  // Shared team card renderer
+                  function TeamCard({ team, n }: { team: Team; n: number }) {
+                    const isMens = team.player1.gender === "MALE" && team.player2.gender === "MALE";
+                    const isWomens = team.player1.gender === "FEMALE" && team.player2.gender === "FEMALE";
+                    const border = isMens ? "border-sky-900" : isWomens ? "border-pink-900" : "border-purple-900";
+                    const bg = isMens ? "bg-sky-950" : isWomens ? "bg-pink-950" : "bg-purple-950";
+                    return (
+                      <div className={`rounded-xl border ${border} ${bg} px-3 py-2.5`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-zinc-500">Team {n}</span>
+                          {isAdmin && (
+                            <button onClick={() => deleteTeam(team.id)} className="text-zinc-600 hover:text-red-400 text-base leading-none">×</button>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {[team.player1, team.player2].map((player) => (
+                            <div key={player.id} className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${player.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"}`} />
+                              <span className="text-sm font-medium text-white truncate">{player.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
 
-                  // Global team index for numbering
-                  let teamIdx = 0;
+                  const hasPods = session.pods.length > 0;
+                  const podTeamIds = new Set(session.pods.flatMap(p => p.teams.map(t => t.id)));
+                  const unassignedTeams = session.teams.filter(t => !podTeamIds.has(t.id));
+                  let globalIdx = 0;
 
-                  return (
-                    <div className="flex flex-col gap-5 mb-4">
-                      {pools.map(pool => (
-                        <div key={pool.label}>
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <span className={`w-2 h-2 rounded-full ${pool.dot}`} />
-                            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                              {pool.label} ({pool.teams.length})
-                            </span>
+                  if (!hasPods) {
+                    // No pods: gender-grouped layout
+                    type TeamPool = { label: string; dot: string; teams: typeof session.teams };
+                    const pools: TeamPool[] = [
+                      { label: "Men's",   dot: "bg-sky-400",    teams: session.teams.filter(t => t.player1.gender === "MALE"   && t.player2.gender === "MALE") },
+                      { label: "Women's", dot: "bg-pink-400",   teams: session.teams.filter(t => t.player1.gender === "FEMALE" && t.player2.gender === "FEMALE") },
+                      { label: "Mixed",   dot: "bg-purple-400", teams: session.teams.filter(t => t.player1.gender !== t.player2.gender) },
+                    ].filter(pool => pool.teams.length > 0);
+                    return (
+                      <div className="flex flex-col gap-5 mb-4">
+                        {pools.map(pool => (
+                          <div key={pool.label}>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <span className={`w-2 h-2 rounded-full ${pool.dot}`} />
+                              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{pool.label} ({pool.teams.length})</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {pool.teams.map(team => <TeamCard key={team.id} team={team} n={++globalIdx} />)}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            {pool.teams.map((team) => {
-                              const n = ++teamIdx;
-                              return (
-                                <div key={team.id} className={`rounded-xl border ${pool.border} ${pool.bg} px-3 py-2.5`}>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-semibold text-zinc-500">Team {n}</span>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  // Pods exist: pod-grouped layout
+                  return (
+                    <div className="flex flex-col gap-4 mb-4">
+                      {session.pods.map(pod => {
+                        const podTeams = session.teams.filter(t => pod.teams.some(pt => pt.id === t.id));
+                        const available = unassignedTeams; // teams not yet in any pod
+                        return (
+                          <div key={pod.id} className="rounded-xl border border-zinc-700 bg-zinc-900 p-3">
+                            <div className="flex items-center justify-between mb-3">
+                              {editingPodId === pod.id ? (
+                                <input autoFocus value={podNameInput}
+                                  onChange={(e) => setPodNameInput(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === "Enter") savePodName(pod.id); if (e.key === "Escape") setEditingPodId(null); }}
+                                  onBlur={() => savePodName(pod.id)}
+                                  className="text-sm font-semibold bg-transparent border-b border-zinc-600 outline-none text-white flex-1 mr-2"
+                                />
+                              ) : (
+                                <span className={`text-sm font-semibold text-zinc-200 ${isAdmin ? "cursor-pointer hover:text-white" : ""}`}
+                                  onClick={isAdmin ? () => { setPodNameInput(pod.name); setEditingPodId(pod.id); } : undefined}>
+                                  {pod.name}
+                                </span>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-zinc-500">{podTeams.length} teams</span>
+                                {isAdmin && <button onClick={() => deletePod(pod.id)} className="text-zinc-600 hover:text-red-400 text-base leading-none">×</button>}
+                              </div>
+                            </div>
+                            {podTeams.length > 0 ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                {podTeams.map(team => (
+                                  <div key={team.id} className="relative">
+                                    <TeamCard team={team} n={++globalIdx} />
                                     {isAdmin && (
-                                      <button onClick={() => deleteTeam(team.id)} className="text-zinc-600 hover:text-red-400 text-base leading-none">×</button>
+                                      <button onClick={() => assignTeamToPod(team.id, null)}
+                                        className="absolute top-2 right-7 text-zinc-600 hover:text-orange-400 text-xs leading-none"
+                                        title="Remove from pod"
+                                      >↑</button>
                                     )}
                                   </div>
-                                  <div className="flex flex-col gap-1">
-                                    {[team.player1, team.player2].map((player) => (
-                                      <div key={player.id} className="flex items-center gap-1.5">
-                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${player.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"}`} />
-                                        <span className="text-sm font-medium text-white truncate">{player.name}</span>
-                                      </div>
-                                    ))}
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-zinc-600 italic mb-1">No teams assigned.</p>
+                            )}
+                            {isAdmin && available.length > 0 && (
+                              <div className="mt-2">
+                                {podPickerOpen === pod.id ? (
+                                  <div>
+                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                      {available.map(team => {
+                                        const isMens = team.player1.gender === "MALE" && team.player2.gender === "MALE";
+                                        const isWomens = team.player1.gender === "FEMALE" && team.player2.gender === "FEMALE";
+                                        return (
+                                          <button key={team.id} onClick={() => assignTeamToPod(team.id, pod.id)}
+                                            className={`text-xs px-2 py-0.5 rounded-full font-medium border transition-colors ${
+                                              isMens ? "bg-sky-950 text-sky-400 border-sky-800 hover:bg-sky-900"
+                                              : isWomens ? "bg-pink-950 text-pink-400 border-pink-800 hover:bg-pink-900"
+                                              : "bg-purple-950 text-purple-400 border-purple-800 hover:bg-purple-900"
+                                            }`}>
+                                            + {team.player1.name} &amp; {team.player2.name}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    <button onClick={() => setPodPickerOpen(null)} className="text-xs text-zinc-500 hover:text-zinc-300 mt-1.5">Done</button>
                                   </div>
-                                </div>
-                              );
-                            })}
+                                ) : (
+                                  <button onClick={() => setPodPickerOpen(pod.id)} className="text-xs text-lime-500 hover:text-lime-400 font-medium">+ Add teams</button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {/* Unassigned teams */}
+                      {unassignedTeams.length > 0 && (
+                        <div>
+                          <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-2">Unassigned ({unassignedTeams.length})</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {unassignedTeams.map(team => <TeamCard key={team.id} team={team} n={++globalIdx} />)}
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   );
                 })()}
@@ -685,6 +960,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     </div>
                   </div>
                 )}
+
 
                 {isAdmin && (
                   <Button
@@ -747,6 +1023,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                           <SelectItem value="MIXED">Mixed</SelectItem>
                           <SelectItem value="MENS">Men&apos;s</SelectItem>
                           <SelectItem value="WOMENS">Women&apos;s</SelectItem>
+                          <SelectItem value="ANY">Any</SelectItem>
                         </SelectContent>
                       </Select>
                       {isAdmin && (
@@ -888,11 +1165,24 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         const sc = scores[game.id];
                         const isEditing = !!sc;
                         const showInputs = isAdmin && (isEditing || !game.completed);
+
+                        // Determine pod from players (rotating) or team (fixed)
+                        const gamePodName = (() => {
+                          if (session.sessionFormat === "FIXED" && game.team1Id) {
+                            return session.pods.find((p) => p.teams.some((t) => t.id === game.team1Id))?.name;
+                          }
+                          const pid = game.team1Player1.id;
+                          return session.pods.find((p) =>
+                            p.sessionPlayers.some((sp) => sp.playerId === pid)
+                          )?.name;
+                        })();
+
                         return (
                           <GameCard
                             key={game.id}
                             courtFormat={game.court.format}
                             courtNumber={game.court.number}
+                            podName={gamePodName}
                             team1Names={[`${game.team1Player1.name} & ${game.team1Player2.name}`]}
                             team2Names={[`${game.team2Player1.name} & ${game.team2Player2.name}`]}
                             team1Score={game.team1Score}
@@ -1151,6 +1441,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         sessionFormat={session.sessionFormat}
         courts={session.courts}
         players={session.sessionPlayers.map((sp) => ({ gender: sp.player.gender }))}
+        pods={session.pods.map((p) => ({ id: p.id, name: p.name, teamCount: p.teams.length }))}
+        unassignedTeamCount={(() => {
+          const podTeamIds = new Set(session.pods.flatMap((p) => p.teams.map((t) => t.id)));
+          return session.teams.filter((t) => !podTeamIds.has(t.id)).length;
+        })()}
         onGenerated={() => { setGenerateOpen(false); loadGames(); }}
       />
 

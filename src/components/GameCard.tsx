@@ -7,6 +7,7 @@ export const formatColor: Record<string, string> = {
   MIXED:  "bg-purple-900/50 text-purple-300",
   MENS:   "bg-sky-900/50 text-sky-300",
   WOMENS: "bg-pink-900/50 text-pink-300",
+  ANY:    "bg-emerald-900/50 text-emerald-300",
 };
 
 interface ScoreEntry {
@@ -31,6 +32,8 @@ interface Props {
   completed: boolean;
   /** Name to underline (leaderboard perspective) */
   highlightName?: string;
+  /** Pod this game belongs to */
+  podName?: string;
   /** Tints the card background for the leaderboard view */
   highlightResult?: "won" | "lost";
   /** Colours the winning team name lime (schedule tab) */
@@ -94,6 +97,7 @@ export function GameCard({
   team2Score,
   completed,
   highlightName,
+  podName,
   highlightResult,
   highlightWinner,
   scoreEntry,
@@ -111,7 +115,7 @@ export function GameCard({
   return (
     <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${cardStyle}`}>
       {/* Badge row — flush left to align with team names */}
-      {(roundNumber !== undefined || courtNumber !== undefined) && (
+      {(roundNumber !== undefined || courtNumber !== undefined || podName) && (
         <div className="flex items-center gap-2 mb-1.5">
           {roundNumber !== undefined && (
             <span className="text-xs text-zinc-500">Rd {roundNumber}</span>
@@ -119,6 +123,11 @@ export function GameCard({
           {courtNumber !== undefined && (
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${formatColor[courtFormat]}`}>
               Court {courtNumber}
+            </span>
+          )}
+          {podName && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-zinc-700 text-zinc-300">
+              {podName}
             </span>
           )}
         </div>

@@ -10,7 +10,13 @@ import {
 import { Button } from "@/components/ui/button";
 
 interface Court {
-  format: "MIXED" | "MENS" | "WOMENS";
+  format: "MIXED" | "MENS" | "WOMENS" | "ANY";
+}
+
+interface PodInfo {
+  id: string;
+  name: string;
+  teamCount: number;
 }
 
 interface Props {
@@ -20,12 +26,14 @@ interface Props {
   sessionFormat: "ROTATING" | "FIXED";
   courts: Court[];
   players: { gender: string }[];
+  pods?: PodInfo[];
+  unassignedTeamCount?: number;
   onGenerated: () => void;
 }
 
 interface RoundOption {
   rounds: number;
-  maleGames: string | null;  // e.g. "5" or "5–6"
+  maleGames: string | null;
   femaleGames: string | null;
 }
 
@@ -65,11 +73,23 @@ function buildOptions(
   return options;
 }
 
-export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts, players, onGenerated }: Props) {
+export function GenerateDialog({
+  open,
+  onClose,
+  sessionId,
+  sessionFormat,
+  courts,
+  players,
+  pods,
+  unassignedTeamCount = 0,
+  onGenerated,
+}: Props) {
   const [rrType, setRrType] = useState<"single" | "double">("single");
   const [selectedRounds, setSelectedRounds] = useState<number | null>(null);
   const [selectedMensRounds, setSelectedMensRounds] = useState<number | null>(null);
   const [selectedWomensRounds, setSelectedWomensRounds] = useState<number | null>(null);
+  // Per-group matchups for FIXED+pods: key is podId or "unassigned"
+  const [groupMatchups, setGroupMatchups] = useState<Record<string, 1 | 2>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -83,9 +103,10 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
   const numMixed   = courts.filter((c) => c.format === "MIXED").length;
   const numMens    = courts.filter((c) => c.format === "MENS").length;
   const numWomens  = courts.filter((c) => c.format === "WOMENS").length;
+  const numAny     = courts.filter((c) => c.format === "ANY").length;
 
-  const malesPerRound   = Math.min(numMales,   numMens * 4 + numMixed * 2);
-  const femalesPerRound = Math.min(numFemales, numWomens * 4 + numMixed * 2);
+  const malesPerRound   = Math.min(numMales,   numMens * 4 + numMixed * 2 + numAny * 4);
+  const femalesPerRound = Math.min(numFemales, numWomens * 4 + numMixed * 2 + numAny * 4);
 
   const roundOptions = useMemo(
     () => buildOptions(numMales, numFemales, malesPerRound, femalesPerRound),
@@ -105,17 +126,45 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
   const effectiveMens   = selectedMensRounds   ?? mensOptions[0]?.rounds   ?? null;
   const effectiveWomens = selectedWomensRounds ?? womensOptions[0]?.rounds ?? null;
 
+  // Pod groups to show per-group toggles (FIXED mode only)
+  const hasPods = sessionFormat === "FIXED" && (pods?.length ?? 0) > 0;
+  const podGroups: { key: string; label: string; count: number; podId: string | null }[] = hasPods
+    ? [
+        ...(pods ?? []).map((p) => ({ key: p.id, label: p.name, count: p.teamCount, podId: p.id })),
+        ...(unassignedTeamCount > 0
+          ? [{ key: "unassigned", label: "Unassigned", count: unassignedTeamCount, podId: null }]
+          : []),
+      ]
+    : [];
+
+  function getMatchup(key: string): 1 | 2 {
+    return groupMatchups[key] ?? 1;
+  }
+  function setMatchup(key: string, v: 1 | 2) {
+    setGroupMatchups((prev) => ({ ...prev, [key]: v }));
+  }
+
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     if (sessionFormat === "ROTATING" && !effectiveSelection) return;
     setLoading(true);
     setError("");
 
-    const body = sessionFormat === "FIXED"
-      ? { mode: rrType }
-      : isSplit
-      ? { mode: "splitExactRounds", value: effectiveMens, womensValue: effectiveWomens }
-      : { mode: "exactRounds", value: effectiveSelection };
+    let body: Record<string, unknown>;
+    if (sessionFormat === "FIXED") {
+      if (hasPods) {
+        body = {
+          podMatchups: (pods ?? []).map((p) => ({ podId: p.id, matchups: getMatchup(p.id) })),
+          unassignedMatchups: getMatchup("unassigned"),
+        };
+      } else {
+        body = { mode: rrType };
+      }
+    } else if (isSplit) {
+      body = { mode: "splitExactRounds", value: effectiveMens, womensValue: effectiveWomens };
+    } else {
+      body = { mode: "exactRounds", value: effectiveSelection };
+    }
 
     const res = await fetch(`/api/sessions/${sessionId}/generate`, {
       method: "POST",
@@ -155,25 +204,60 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
         </DialogHeader>
         <form onSubmit={handleGenerate} className="flex flex-col gap-4 mt-2">
           {sessionFormat === "FIXED" ? (
-            <div className="flex flex-col gap-2">
-              {(["single", "double"] as const).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setRrType(type)}
-                  className={`w-full py-3 rounded-lg text-sm font-medium border transition-colors text-left px-4 ${
-                    rrType === type
-                      ? "bg-lime-500 text-black border-lime-500"
-                      : "bg-zinc-900 text-zinc-400 border-zinc-700"
-                  }`}
-                >
-                  <span className="font-semibold capitalize">{type} Round Robin</span>
-                  <p className={`text-xs mt-0.5 ${rrType === type ? "text-black/60" : "text-zinc-600"}`}>
-                    {type === "single" ? "Every team faces every other team once" : "Every team faces every other team twice"}
-                  </p>
-                </button>
-              ))}
-            </div>
+            hasPods ? (
+              /* Per-pod single/double toggles */
+              <div className="flex flex-col gap-2.5">
+                {podGroups.map((group) => (
+                  <div key={group.key} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-zinc-200 truncate">{group.label}</div>
+                      <div className="text-xs text-zinc-500">
+                        {group.count} {group.count === 1 ? "team" : "teams"}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 rounded-md overflow-hidden border border-zinc-700">
+                      {([1, 2] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setMatchup(group.key, m)}
+                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            getMatchup(group.key) === m
+                              ? "bg-lime-500 text-black"
+                              : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+                          }`}
+                        >
+                          {m === 1 ? "Single" : "Double"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* Global single/double for no-pod sessions */
+              <div className="flex flex-col gap-2">
+                {(["single", "double"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setRrType(type)}
+                    className={`w-full py-3 rounded-lg text-sm font-medium border transition-colors text-left px-4 ${
+                      rrType === type
+                        ? "bg-lime-500 text-black border-lime-500"
+                        : "bg-zinc-900 text-zinc-400 border-zinc-700"
+                    }`}
+                  >
+                    <span className="font-semibold capitalize">{type} Round Robin</span>
+                    <p className={`text-xs mt-0.5 ${rrType === type ? "text-black/60" : "text-zinc-600"}`}>
+                      {type === "single"
+                        ? "Every team faces every other team once"
+                        : "Every team faces every other team twice"}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )
           ) : noOptions ? (
             <p className="text-sm text-zinc-500 text-center py-4">Add players and courts first.</p>
           ) : isSplit ? (

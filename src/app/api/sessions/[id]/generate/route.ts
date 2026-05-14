@@ -7,13 +7,15 @@ import {
   roundsFromMinGamesSplit,
   generateFixedSchedule,
   roundsFromMinGamesFixed,
+  generatePodSchedules,
+  generateFixedPodSchedules,
   RRTeam,
   RROverride,
 } from "@/lib/roundRobin";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: sessionId } = await params;
-  const { mode, value, womensValue } = await request.json();
+  const { mode, value, womensValue, podMatchups, unassignedMatchups } = await request.json();
 
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
@@ -22,13 +24,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       sessionPlayers: { include: { player: true } },
       teams: { include: { player1: true, player2: true } },
       playerOverrides: true,
+      pods: { include: { sessionPlayers: true, teams: true } },
     },
   });
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const courts = session.courts.map((c) => ({
     courtId: c.id,
-    format: c.format as "MIXED" | "MENS" | "WOMENS",
+    format: c.format as "MIXED" | "MENS" | "WOMENS" | "ANY",
   }));
 
   if (courts.length === 0) {
@@ -71,15 +74,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const mensCourts   = courts.filter((c) => c.format === "MENS").length;
     const womensCourts = courts.filter((c) => c.format === "WOMENS").length;
     const mixedCourts  = courts.filter((c) => c.format === "MIXED").length;
+    const anyCourts    = courts.filter((c) => c.format === "ANY").length;
 
     const mensTeamCount   = rrTeams.filter((t) => t.player1Gender === "MALE"   && t.player2Gender === "MALE").length;
     const womensTeamCount = rrTeams.filter((t) => t.player1Gender === "FEMALE" && t.player2Gender === "FEMALE").length;
     const mixedTeamCount  = rrTeams.filter((t) => t.player1Gender !== t.player2Gender).length;
+    // ANY courts can host any team type — use total team count for round calculation.
+    const anyTeamCount    = anyCourts > 0 ? rrTeams.length : 0;
 
     const roundsForSingle = Math.max(
       roundsForGroup(mensTeamCount, mensCourts),
       roundsForGroup(womensTeamCount, womensCourts),
       roundsForGroup(mixedTeamCount, mixedCourts),
+      roundsForGroup(anyTeamCount, anyCourts),
       1
     );
 
@@ -87,10 +94,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Need at least 2 teams and 1 court." }, { status: 400 });
     }
 
-    const numRounds = mode === "double" ? roundsForSingle * 2 : roundsForSingle;
-    const maxMatchups = mode === "double" ? 2 : 1;
+    // Per-pod matchups come from the dialog; fall back to global mode for no-pod sessions.
+    const podMatchupsMap = new Map<string, number>(
+      (podMatchups ?? []).map((pm: { podId: string; matchups: number }) => [pm.podId, pm.matchups])
+    );
 
-    const schedule = generateFixedSchedule(rrTeams, courts, numRounds, maxMatchups);
+    // Compute pod membership from team.podId (scalar field, always present)
+    const teamPodMap = new Map<string, string>(); // teamId → podId
+    for (const t of session.teams) {
+      if ((t as typeof t & { podId?: string | null }).podId) {
+        teamPodMap.set(t.id, (t as typeof t & { podId: string }).podId);
+      }
+    }
+    const podTeamGroups = session.pods
+      .map((p) => ({ podId: p.id, teamIds: session.teams.filter((t) => teamPodMap.get(t.id) === p.id).map((t) => t.id) }))
+      .filter((g) => g.teamIds.length > 0);
+
+    const hasPodConfig = podTeamGroups.length > 0;
+
+    // For sessions without pods, fall back to the global mode setting.
+    const globalMaxMatchups = hasPodConfig ? 1 : mode === "double" ? 2 : 1;
+    const numRounds = hasPodConfig
+      ? roundsForSingle * 2 + 10  // generous cap; scheduler self-terminates
+      : mode === "double" ? roundsForSingle * 2 : roundsForSingle;
+
+    const schedule = hasPodConfig
+      ? generateFixedPodSchedules(
+          rrTeams,
+          podTeamGroups.map((g) => ({
+            teamIds: g.teamIds,
+            maxMatchups: podMatchupsMap.get(g.podId) ?? 1,
+          })),
+          courts,
+          numRounds,
+          1, // defaultMaxMatchups
+          unassignedMatchups ?? 1
+        )
+      : generateFixedSchedule(rrTeams, courts, numRounds, globalMaxMatchups);
 
     const gameData = schedule.flatMap((round, roundIdx) =>
       round.map((game) => ({
@@ -119,13 +159,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const males = players.filter((p) => p.gender === "MALE").length;
     const females = players.filter((p) => p.gender === "FEMALE").length;
-    const mensCourts = courts.filter((c) => c.format === "MENS").length;
+    const mensCourts   = courts.filter((c) => c.format === "MENS").length;
     const womensCourts = courts.filter((c) => c.format === "WOMENS").length;
-    const mixedCourts = courts.filter((c) => c.format === "MIXED").length;
+    const mixedCourts  = courts.filter((c) => c.format === "MIXED").length;
+    // ANY courts don't have gender requirements — skip strict validation for them
 
-    // Males needed per round: 4 per MENS court + 2 per MIXED court
-    const malesNeeded = mensCourts * 4 + mixedCourts * 2;
-    // Females needed per round: 4 per WOMENS court + 2 per MIXED court
+    // Males needed per round from gender-specific courts only
+    const malesNeeded   = mensCourts * 4 + mixedCourts * 2;
     const femalesNeeded = womensCourts * 4 + mixedCourts * 2;
 
     const errors: string[] = [];
@@ -152,6 +192,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     let schedule: ReturnType<typeof generateSchedule>;
 
+    // Compute pod membership from sessionPlayer.podId (scalar field, always present)
+    const spPodMap = new Map<string, string>(); // playerId → podId
+    for (const sp of session.sessionPlayers) {
+      if ((sp as typeof sp & { podId?: string | null }).podId) {
+        spPodMap.set(sp.playerId, (sp as typeof sp & { podId: string }).podId);
+      }
+    }
+    const podPlayerGroups = session.pods
+      .map((p) => ({ podId: p.id, playerIds: session.sessionPlayers.filter((sp) => spPodMap.get(sp.playerId) === p.id).map((sp) => sp.playerId) }))
+      .filter((g) => g.playerIds.length > 0);
+    const usePods = podPlayerGroups.length > 0;
+
     if (mode === "splitExactRounds") {
       schedule = generateSplitSchedule(players, courts, value, womensValue ?? value, rrOverrides);
     } else {
@@ -171,7 +223,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       } else {
         numRounds = value;
       }
-      schedule = generateSchedule(players, courts, numRounds, rrOverrides);
+
+      if (usePods) {
+        schedule = generatePodSchedules(
+          players,
+          podPlayerGroups.map((g) => ({ playerIds: g.playerIds })),
+          courts,
+          numRounds,
+          rrOverrides
+        );
+      } else {
+        schedule = generateSchedule(players, courts, numRounds, rrOverrides);
+      }
     }
 
     const gameData = schedule.flatMap((round, roundIdx) =>

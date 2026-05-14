@@ -16,7 +16,7 @@ export interface RRPlayer {
 
 export interface RRCourt {
   courtId: string;
-  format: "MIXED" | "MENS" | "WOMENS";
+  format: "MIXED" | "MENS" | "WOMENS" | "ANY";
 }
 
 export interface RROverride {
@@ -168,10 +168,10 @@ export function generateSchedule(
 
   const allIds = players.map((p) => p.id);
 
-  // Process MIXED courts first — they need both genders so must claim players
-  // before gender-specific courts drain one pool entirely.
+  // Process MIXED courts first (need both genders), then gender-specific, then ANY last
+  // (ANY takes whoever remains and can host any gender combination).
   const courtOrder = [...courts].sort((a, b) => {
-    const p = { MIXED: 0, MENS: 1, WOMENS: 2 };
+    const p = { MIXED: 0, MENS: 1, WOMENS: 2, ANY: 3 };
     return p[a.format] - p[b.format];
   });
 
@@ -190,8 +190,11 @@ export function generateSchedule(
         result = bestGameMixed(available);
       } else if (court.format === "MENS") {
         result = bestGameAny(available.filter((id) => genders[id] === "MALE"));
-      } else {
+      } else if (court.format === "WOMENS") {
         result = bestGameAny(available.filter((id) => genders[id] === "FEMALE"));
+      } else {
+        // ANY court: pick best 4 from all remaining players, any gender mix
+        result = bestGameAny(available);
       }
 
       if (!result) continue;
@@ -233,7 +236,8 @@ interface FixedGame {
   team2: RRTeam;
 }
 
-function teamMatchesCourtFormat(team: RRTeam, format: "MIXED" | "MENS" | "WOMENS"): boolean {
+function teamMatchesCourtFormat(team: RRTeam, format: "MIXED" | "MENS" | "WOMENS" | "ANY"): boolean {
+  if (format === "ANY") return true; // any team can play on an ANY court
   const bothMale = team.player1Gender === "MALE" && team.player2Gender === "MALE";
   const bothFemale = team.player1Gender === "FEMALE" && team.player2Gender === "FEMALE";
   const isMixed = !bothMale && !bothFemale;
@@ -295,8 +299,8 @@ export function generateFixedSchedule(
   }
 
   const courtOrder = [...courts].sort((a, b) => {
-    const p = { MIXED: 0, MENS: 1, WOMENS: 2 };
-    return p[a.format] - p[b.format];
+    const p: Record<string, number> = { MIXED: 0, MENS: 1, WOMENS: 2, ANY: 3 };
+    return (p[a.format] ?? 3) - (p[b.format] ?? 3);
   });
 
   const rounds: FixedGame[][] = [];
@@ -388,6 +392,319 @@ export function roundsFromMinGamesSplit(
   return Math.max(menRounds, womenRounds, 1);
 }
 
+// ─── Pod-aware scheduling ─────────────────────────────────────────────────────
+//
+// Both generatePodSchedules (rotating) and generateFixedPodSchedules (fixed)
+// use a unified multi-group scheduler: all groups compete for court slots each
+// round. In every round, each court is filled by whichever group has the best
+// available game for that court format. This guarantees all courts are always
+// in use as long as any group has players/teams remaining to schedule.
+
+export function generatePodSchedules(
+  players: RRPlayer[],
+  podGroups: { playerIds: string[] }[],
+  courts: RRCourt[],
+  numRounds: number,
+  overrides: RROverride[] = []
+): ReturnType<typeof generateSchedule> {
+  const allPodPlayerIds = new Set(podGroups.flatMap((g) => g.playerIds));
+  const ungrouped = players.filter((p) => !allPodPlayerIds.has(p.id));
+
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  const rawGroups: RRPlayer[][] = [
+    ...podGroups
+      .filter((g) => g.playerIds.length > 0)
+      .map((g) => g.playerIds.map((id) => playerMap.get(id)).filter((p): p is RRPlayer => !!p)),
+    ...(ungrouped.length > 0 ? [ungrouped] : []),
+  ].filter((g) => g.length >= 4);
+
+  if (rawGroups.length === 0) return generateSchedule(players, courts, numRounds, overrides);
+  if (rawGroups.length === 1) return generateSchedule(rawGroups[0], courts, numRounds, overrides);
+
+  // Per-group scheduling state (mirrors generateSchedule internals).
+  type GState = {
+    players: RRPlayer[];
+    genders: Record<string, "MALE" | "FEMALE">;
+    partnerCount: Map<string, number>;
+    opponentCount: Map<string, number>;
+    sitOutCount: Map<string, number>;
+  };
+
+  const gKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const getC = (m: Map<string, number>, a: string, b: string) => m.get(gKey(a, b)) ?? 0;
+  const incC = (m: Map<string, number>, a: string, b: string) => {
+    const k = gKey(a, b);
+    m.set(k, (m.get(k) ?? 0) + 1);
+  };
+
+  const states: GState[] = rawGroups.map((gp) => ({
+    players: gp,
+    genders: Object.fromEntries(gp.map((p) => [p.id, p.gender])) as Record<string, "MALE" | "FEMALE">,
+    partnerCount: new Map(),
+    opponentCount: new Map(),
+    sitOutCount: new Map(gp.map((p) => [p.id, 0])),
+  }));
+
+  function scoreGame(
+    st: GState,
+    t1: [string, string],
+    t2: [string, string]
+  ): number {
+    let s =
+      getC(st.partnerCount, t1[0], t1[1]) * 6 +
+      getC(st.partnerCount, t2[0], t2[1]) * 6 +
+      getC(st.opponentCount, t1[0], t2[0]) * 2 +
+      getC(st.opponentCount, t1[0], t2[1]) * 2 +
+      getC(st.opponentCount, t1[1], t2[0]) * 2 +
+      getC(st.opponentCount, t1[1], t2[1]) * 2 -
+      [...t1, ...t2].reduce((sum, id) => sum + (st.sitOutCount.get(id) ?? 0), 0) * 3;
+    for (const ov of overrides) {
+      const { player1Id: a, player2Id: b, type } = ov;
+      if (!st.players.some((p) => p.id === a) || !st.players.some((p) => p.id === b)) continue;
+      const t1Tog = (t1[0] === a && t1[1] === b) || (t1[0] === b && t1[1] === a);
+      const t2Tog = (t2[0] === a && t2[1] === b) || (t2[0] === b && t2[1] === a);
+      const both = [...t1, ...t2].includes(a) && [...t1, ...t2].includes(b);
+      if (type === "MUST_NOT_PARTNER" && (t1Tog || t2Tog)) s += 10000;
+      if (type === "MUST_PARTNER" && both && !t1Tog && !t2Tog && getC(st.partnerCount, a, b) === 0)
+        s += 10000;
+    }
+    return s;
+  }
+
+  function findBestForCourt(
+    st: GState,
+    available: string[],
+    format: "MIXED" | "MENS" | "WOMENS" | "ANY"
+  ): { team1: [string, string]; team2: [string, string]; score: number } | null {
+    const sorted = [...available]
+      .sort((a, b) => (st.sitOutCount.get(b) ?? 0) - (st.sitOutCount.get(a) ?? 0))
+      .slice(0, MAX_CANDIDATES);
+
+    let best: { team1: [string, string]; team2: [string, string]; score: number } | null = null;
+
+    if (format === "MIXED") {
+      const males = sorted.filter((id) => st.genders[id] === "MALE");
+      const females = sorted.filter((id) => st.genders[id] === "FEMALE");
+      if (males.length < 2 || females.length < 2) return null;
+      for (let mi = 0; mi < males.length - 1; mi++)
+        for (let mj = mi + 1; mj < males.length; mj++)
+          for (let fi = 0; fi < females.length - 1; fi++)
+            for (let fj = fi + 1; fj < females.length; fj++) {
+              const [m1, m2, f1, f2] = [males[mi], males[mj], females[fi], females[fj]];
+              for (const [t1, t2] of [
+                [[m1, f1], [m2, f2]],
+                [[m1, f2], [m2, f1]],
+              ] as [[string, string], [string, string]][]) {
+                const s = scoreGame(st, t1, t2);
+                if (!best || s < best.score) best = { team1: t1, team2: t2, score: s };
+              }
+            }
+    } else {
+      const pool =
+        format === "MENS"
+          ? sorted.filter((id) => st.genders[id] === "MALE")
+          : format === "WOMENS"
+          ? sorted.filter((id) => st.genders[id] === "FEMALE")
+          : sorted;
+      if (pool.length < 4) return null;
+      for (let i = 0; i < pool.length - 3; i++)
+        for (let j = i + 1; j < pool.length - 2; j++)
+          for (let k = j + 1; k < pool.length - 1; k++)
+            for (let l = k + 1; l < pool.length; l++) {
+              const [a, b, c, d] = [pool[i], pool[j], pool[k], pool[l]];
+              for (const [t1, t2] of [
+                [[a, b], [c, d]],
+                [[a, c], [b, d]],
+                [[a, d], [b, c]],
+              ] as [[string, string], [string, string]][]) {
+                const s = scoreGame(st, t1, t2);
+                if (!best || s < best.score) best = { team1: t1, team2: t2, score: s };
+              }
+            }
+    }
+    return best;
+  }
+
+  const courtOrder = [...courts].sort((a, b) => {
+    const p: Record<string, number> = { MIXED: 0, MENS: 1, WOMENS: 2, ANY: 3 };
+    return (p[a.format] ?? 3) - (p[b.format] ?? 3);
+  });
+
+  const rounds: ReturnType<typeof generateSchedule> = [];
+
+  for (let r = 0; r < numRounds; r++) {
+    const round: { courtId: string; team1: [string, string]; team2: [string, string] }[] = [];
+    const usedPlayers = new Set<string>();
+
+    for (const court of courtOrder) {
+      let winner: { team1: [string, string]; team2: [string, string]; score: number } | null = null;
+      let winnerStateIdx = -1;
+
+      for (let gi = 0; gi < states.length; gi++) {
+        const available = states[gi].players.map((p) => p.id).filter((id) => !usedPlayers.has(id));
+        const candidate = findBestForCourt(states[gi], available, court.format);
+        if (candidate && (!winner || candidate.score < winner.score)) {
+          winner = candidate;
+          winnerStateIdx = gi;
+        }
+      }
+
+      if (!winner) continue;
+
+      const st = states[winnerStateIdx];
+      const { team1, team2 } = winner;
+      incC(st.partnerCount, team1[0], team1[1]);
+      incC(st.partnerCount, team2[0], team2[1]);
+      for (const a of team1) for (const b of team2) incC(st.opponentCount, a, b);
+      for (const id of [...team1, ...team2]) usedPlayers.add(id);
+      round.push({ courtId: court.courtId, team1, team2 });
+    }
+
+    for (const st of states) {
+      for (const p of st.players) {
+        if (!usedPlayers.has(p.id))
+          st.sitOutCount.set(p.id, (st.sitOutCount.get(p.id) ?? 0) + 1);
+      }
+    }
+
+    rounds.push(round);
+  }
+
+  return rounds;
+}
+
+export function generateFixedPodSchedules(
+  teams: RRTeam[],
+  /** Each pod group carries its own maxMatchups (1 = single, 2 = double, etc.) */
+  podGroups: { teamIds: string[]; maxMatchups?: number }[],
+  courts: RRCourt[],
+  numRounds: number,
+  defaultMaxMatchups = 1,
+  unassignedMaxMatchups?: number
+): ReturnType<typeof generateFixedSchedule> {
+  const allPodTeamIds = new Set(podGroups.flatMap((g) => g.teamIds));
+  const ungrouped = teams.filter((t) => !allPodTeamIds.has(t.teamId));
+  const teamMap = new Map(teams.map((t) => [t.teamId, t]));
+
+  type GroupDef = { teams: RRTeam[]; maxMatchups: number };
+
+  const rawGroups: GroupDef[] = [
+    ...podGroups
+      .filter((g) => g.teamIds.length > 0)
+      .map((g) => ({
+        teams: g.teamIds.map((id) => teamMap.get(id)).filter((t): t is RRTeam => !!t),
+        maxMatchups: g.maxMatchups ?? defaultMaxMatchups,
+      })),
+    ...(ungrouped.length > 0
+      ? [{ teams: ungrouped, maxMatchups: unassignedMaxMatchups ?? defaultMaxMatchups }]
+      : []),
+  ].filter((g) => g.teams.length >= 2);
+
+  if (rawGroups.length === 0) return generateFixedSchedule(teams, courts, numRounds, defaultMaxMatchups);
+  if (rawGroups.length === 1)
+    return generateFixedSchedule(rawGroups[0].teams, courts, numRounds, rawGroups[0].maxMatchups);
+
+  type FState = {
+    teams: RRTeam[];
+    maxMatchups: number;
+    matchupCount: Map<string, number>;
+    sitOutCount: Map<string, number>;
+  };
+
+  const fKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const getM = (m: Map<string, number>, a: string, b: string) => m.get(fKey(a, b)) ?? 0;
+  const incM = (m: Map<string, number>, a: string, b: string) => {
+    const k = fKey(a, b);
+    m.set(k, (m.get(k) ?? 0) + 1);
+  };
+
+  const fStates: FState[] = rawGroups.map((g) => ({
+    teams: g.teams,
+    maxMatchups: g.maxMatchups,
+    matchupCount: new Map(),
+    sitOutCount: new Map(g.teams.map((t) => [t.teamId, 0])),
+  }));
+
+  function findBestPairForCourt(
+    st: FState,
+    availableTeams: RRTeam[],
+    format: "MIXED" | "MENS" | "WOMENS" | "ANY"
+  ): { team1: RRTeam; team2: RRTeam; score: number } | null {
+    const eligible = availableTeams.filter((t) => teamMatchesCourtFormat(t, format));
+    if (eligible.length < 2) return null;
+    const sorted = [...eligible].sort(
+      (a, b) => (st.sitOutCount.get(b.teamId) ?? 0) - (st.sitOutCount.get(a.teamId) ?? 0)
+    );
+    let best: { team1: RRTeam; team2: RRTeam; score: number } | null = null;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (getM(st.matchupCount, sorted[i].teamId, sorted[j].teamId) >= st.maxMatchups) continue;
+        const s =
+          getM(st.matchupCount, sorted[i].teamId, sorted[j].teamId) * 6 -
+          (st.sitOutCount.get(sorted[i].teamId) ?? 0) * 3 -
+          (st.sitOutCount.get(sorted[j].teamId) ?? 0) * 3;
+        if (!best || s < best.score) best = { team1: sorted[i], team2: sorted[j], score: s };
+      }
+    }
+    return best;
+  }
+
+  const fCourtOrder = [...courts].sort((a, b) => {
+    const p: Record<string, number> = { MIXED: 0, MENS: 1, WOMENS: 2, ANY: 3 };
+    return (p[a.format] ?? 3) - (p[b.format] ?? 3);
+  });
+
+  const rounds: ReturnType<typeof generateFixedSchedule> = [];
+
+  // Run until no games can be scheduled (all pairs within each pod exhausted).
+  // Safety cap: sum of (pairs × maxMatchups) across all groups, at least numRounds.
+  const totalWeightedPairs = rawGroups.reduce(
+    (sum, g) => sum + ((g.teams.length * (g.teams.length - 1)) / 2) * g.maxMatchups,
+    0
+  );
+  const cap = Math.max(numRounds, totalWeightedPairs + 10);
+
+  for (let r = 0; r < cap; r++) {
+    const round: { courtId: string; team1: RRTeam; team2: RRTeam }[] = [];
+    const usedTeams = new Set<string>();
+
+    for (const court of fCourtOrder) {
+      let winner: { team1: RRTeam; team2: RRTeam; score: number } | null = null;
+      let winnerStateIdx = -1;
+
+      for (let gi = 0; gi < fStates.length; gi++) {
+        const available = fStates[gi].teams.filter((t) => !usedTeams.has(t.teamId));
+        const candidate = findBestPairForCourt(fStates[gi], available, court.format);
+        if (candidate && (!winner || candidate.score < winner.score)) {
+          winner = candidate;
+          winnerStateIdx = gi;
+        }
+      }
+
+      if (!winner) continue;
+
+      const st = fStates[winnerStateIdx];
+      incM(st.matchupCount, winner.team1.teamId, winner.team2.teamId);
+      usedTeams.add(winner.team1.teamId);
+      usedTeams.add(winner.team2.teamId);
+      round.push({ courtId: court.courtId, team1: winner.team1, team2: winner.team2 });
+    }
+
+    for (const st of fStates) {
+      for (const t of st.teams) {
+        if (!usedTeams.has(t.teamId))
+          st.sitOutCount.set(t.teamId, (st.sitOutCount.get(t.teamId) ?? 0) + 1);
+      }
+    }
+
+    if (round.length === 0) break; // all pods exhausted
+    rounds.push(round);
+  }
+
+  return rounds;
+}
+
 export function roundsFromMinGames(
   players: RRPlayer[],
   courts: RRCourt[],
@@ -401,9 +718,11 @@ export function roundsFromMinGames(
   const mensCourts = courts.filter((c) => c.format === "MENS").length;
   const womensCourts = courts.filter((c) => c.format === "WOMENS").length;
   const mixedCourts = courts.filter((c) => c.format === "MIXED").length;
+  const anyCourts = courts.filter((c) => c.format === "ANY").length;
 
-  const malesPlaying = Math.min(males, mensCourts * 4 + mixedCourts * 2);
-  const femalesPlaying = Math.min(females, womensCourts * 4 + mixedCourts * 2);
+  // ANY courts take 4 players of any gender — add their capacity to each gender's pool.
+  const malesPlaying = Math.min(males, mensCourts * 4 + mixedCourts * 2 + anyCourts * 4);
+  const femalesPlaying = Math.min(females, womensCourts * 4 + mixedCourts * 2 + anyCourts * 4);
 
   const maleRate = males > 0 ? malesPlaying / males : 0;
   const femaleRate = females > 0 ? femalesPlaying / females : 0;

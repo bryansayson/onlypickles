@@ -9,12 +9,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-type CourtFormat = "MIXED" | "MENS" | "WOMENS";
+type CourtFormat = "MIXED" | "MENS" | "WOMENS" | "ANY";
 
 const options: { value: CourtFormat; label: string; description: string; color: string }[] = [
-  { value: "MIXED", label: "Mixed", description: "Open to all genders", color: "border-purple-300 bg-purple-50 text-purple-700" },
-  { value: "MENS", label: "Men's", description: "Men only", color: "border-blue-300 bg-blue-50 text-blue-700" },
-  { value: "WOMENS", label: "Women's", description: "Women only", color: "border-pink-300 bg-pink-50 text-pink-700" },
+  { value: "MIXED", label: "Mixed", description: "1 man + 1 woman per team", color: "border-purple-300 bg-purple-50 text-purple-700" },
+  { value: "MENS", label: "Men's", description: "Men's doubles only", color: "border-blue-300 bg-blue-50 text-blue-700" },
+  { value: "WOMENS", label: "Women's", description: "Women's doubles only", color: "border-pink-300 bg-pink-50 text-pink-700" },
+  { value: "ANY", label: "Any", description: "Any format — mixed, men's, or women's", color: "border-emerald-300 bg-emerald-50 text-emerald-700" },
 ];
 
 interface Props {
@@ -40,7 +41,7 @@ export function AddCourtDialog({ open, onClose, onAdded }: Props) {
               className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-left transition-colors ${
                 selected === opt.value
                   ? opt.color
-                  : "border-gray-200 bg-white text-gray-700"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-300"
               }`}
             >
               <div>
@@ -55,7 +56,7 @@ export function AddCourtDialog({ open, onClose, onAdded }: Props) {
         </div>
         <Button
           onClick={() => onAdded(selected)}
-          className="w-full mt-2 bg-green-600 hover:bg-green-700"
+          className="w-full mt-2 bg-lime-500 hover:bg-lime-400 text-black font-bold"
         >
           Add Court
         </Button>

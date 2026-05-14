@@ -190,6 +190,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
                       <SelectItem value="MIXED">Mixed</SelectItem>
                       <SelectItem value="MENS">Men&apos;s</SelectItem>
                       <SelectItem value="WOMENS">Women&apos;s</SelectItem>
+                      <SelectItem value="ANY">Any</SelectItem>
                     </SelectContent>
                   </Select>
                   {courts.length > 1 && (

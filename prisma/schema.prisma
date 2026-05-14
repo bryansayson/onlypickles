@@ -38,6 +38,17 @@ model Session {
   teams           Team[]
   playerOverrides PlayerOverride[]
   medalRound      MedalRound?
+  pods            Pod[]
+}
+
+model Pod {
+  id        String @id @default(cuid())
+  sessionId String
+  name      String
+
+  session        Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionPlayers SessionPlayer[]
+  teams          Team[]
 }
 
 model MedalRound {
@@ -65,14 +76,16 @@ model PlayerOverride {
 }
 
 model Team {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   sessionId String
   player1Id String
   player2Id String
+  podId     String?
 
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  player1 Player  @relation("TeamPlayer1", fields: [player1Id], references: [id])
-  player2 Player  @relation("TeamPlayer2", fields: [player2Id], references: [id])
+  session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player1 Player   @relation("TeamPlayer1", fields: [player1Id], references: [id])
+  player2 Player   @relation("TeamPlayer2", fields: [player2Id], references: [id])
+  pod     Pod?     @relation(fields: [podId], references: [id], onDelete: SetNull)
 
   gamesAsTeam1 Game[] @relation("FixedTeam1")
   gamesAsTeam2 Game[] @relation("FixedTeam2")
@@ -96,9 +109,11 @@ model SessionPlayer {
   sessionId String
   playerId  String
   courtId   String?
+  podId     String?
 
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  player  Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  pod     Pod?     @relation(fields: [podId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, playerId])
 }
@@ -136,6 +151,7 @@ enum CourtFormat {
   MIXED
   MENS
   WOMENS
+  ANY
 }
 
 enum SessionFormat {
