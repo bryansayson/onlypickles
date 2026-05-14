@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   generateSchedule,
+  generateSplitSchedule,
   roundsFromMinGames,
   roundsFromMinGamesSplit,
   generateFixedSchedule,
@@ -54,21 +55,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       player2Gender: t.player2.gender as "MALE" | "FEMALE",
     }));
 
-    // Each court can host 1 game per round. Estimate how many games per round
-    // accounting for teams that may not be eligible for all court formats.
-    const gamesPerRound = Math.min(courts.length, Math.floor(rrTeams.length / 2));
-    if (gamesPerRound === 0) {
+    if (courts.length === 0) {
+      return NextResponse.json({ error: "Need at least 1 court." }, { status: 400 });
+    }
+
+    // Calculate rounds per gender group independently — men's teams only face
+    // men's teams (on MENS courts), women's only face women's, mixed face mixed.
+    function roundsForGroup(teamCount: number, courtCount: number): number {
+      if (teamCount < 2 || courtCount === 0) return 0;
+      const gamesPerRound = Math.min(courtCount, Math.floor(teamCount / 2));
+      const pairs = (teamCount * (teamCount - 1)) / 2;
+      return Math.ceil(pairs / gamesPerRound);
+    }
+
+    const mensCourts   = courts.filter((c) => c.format === "MENS").length;
+    const womensCourts = courts.filter((c) => c.format === "WOMENS").length;
+    const mixedCourts  = courts.filter((c) => c.format === "MIXED").length;
+
+    const mensTeamCount   = rrTeams.filter((t) => t.player1Gender === "MALE"   && t.player2Gender === "MALE").length;
+    const womensTeamCount = rrTeams.filter((t) => t.player1Gender === "FEMALE" && t.player2Gender === "FEMALE").length;
+    const mixedTeamCount  = rrTeams.filter((t) => t.player1Gender !== t.player2Gender).length;
+
+    const roundsForSingle = Math.max(
+      roundsForGroup(mensTeamCount, mensCourts),
+      roundsForGroup(womensTeamCount, womensCourts),
+      roundsForGroup(mixedTeamCount, mixedCourts),
+      1
+    );
+
+    if (roundsForSingle === 1 && mensTeamCount + womensTeamCount + mixedTeamCount < 2) {
       return NextResponse.json({ error: "Need at least 2 teams and 1 court." }, { status: 400 });
     }
 
-    // Single RR: every pair meets once → N*(N-1)/2 total matchups
-    const totalPairs = (rrTeams.length * (rrTeams.length - 1)) / 2;
-    const roundsForSingle = Math.ceil(totalPairs / gamesPerRound);
+    const numRounds = mode === "double" ? roundsForSingle * 2 : roundsForSingle;
+    const maxMatchups = mode === "double" ? 2 : 1;
 
-    const numRounds =
-      mode === "double" ? roundsForSingle * 2 : roundsForSingle;
-
-    const schedule = generateFixedSchedule(rrTeams, courts, numRounds);
+    const schedule = generateFixedSchedule(rrTeams, courts, numRounds, maxMatchups);
 
     const gameData = schedule.flatMap((round, roundIdx) =>
       round.map((game) => ({
@@ -122,32 +144,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: errors.join(". ") }, { status: 400 });
     }
 
-    const isSplitSession = mensCourts > 0 && womensCourts > 0 && mixedCourts === 0;
-
-    let numRounds: number;
-    if (mode === "splitMinGames") {
-      const malePlayers = players.filter((p) => p.gender === "MALE");
-      const femalePlayers = players.filter((p) => p.gender === "FEMALE");
-      const rrMensCourts = courts.filter((c) => c.format === "MENS");
-      const rrWomensCourts = courts.filter((c) => c.format === "WOMENS");
-      numRounds = roundsFromMinGamesSplit(
-        malePlayers, femalePlayers,
-        rrMensCourts, rrWomensCourts,
-        value, womensValue ?? value
-      );
-    } else if (mode === "minGames") {
-      numRounds = roundsFromMinGames(players, courts, value);
-    } else {
-      numRounds = value;
-    }
-
     const rrOverrides: RROverride[] = session.playerOverrides.map((o) => ({
       player1Id: o.player1Id,
       player2Id: o.player2Id,
       type: o.type as "MUST_PARTNER" | "MUST_NOT_PARTNER",
     }));
 
-    const schedule = generateSchedule(players, courts, numRounds, rrOverrides);
+    let schedule: ReturnType<typeof generateSchedule>;
+
+    if (mode === "splitExactRounds") {
+      schedule = generateSplitSchedule(players, courts, value, womensValue ?? value, rrOverrides);
+    } else {
+      let numRounds: number;
+      if (mode === "splitMinGames") {
+        const malePlayers = players.filter((p) => p.gender === "MALE");
+        const femalePlayers = players.filter((p) => p.gender === "FEMALE");
+        const rrMensCourts = courts.filter((c) => c.format === "MENS");
+        const rrWomensCourts = courts.filter((c) => c.format === "WOMENS");
+        numRounds = roundsFromMinGamesSplit(
+          malePlayers, femalePlayers,
+          rrMensCourts, rrWomensCourts,
+          value, womensValue ?? value
+        );
+      } else if (mode === "minGames") {
+        numRounds = roundsFromMinGames(players, courts, value);
+      } else {
+        numRounds = value;
+      }
+      schedule = generateSchedule(players, courts, numRounds, rrOverrides);
+    }
 
     const gameData = schedule.flatMap((round, roundIdx) =>
       round.map((game) => ({

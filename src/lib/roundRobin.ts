@@ -245,7 +245,8 @@ function teamMatchesCourtFormat(team: RRTeam, format: "MIXED" | "MENS" | "WOMENS
 export function generateFixedSchedule(
   teams: RRTeam[],
   courts: RRCourt[],
-  numRounds: number
+  numRounds: number,
+  maxMatchups = Infinity
 ): FixedGame[][] {
   const matchupCount = new Map<string, number>();
   const sitOutCount = new Map<string, number>();
@@ -271,10 +272,10 @@ export function generateFixedSchedule(
     );
   }
 
-  // Find the best 2-team pairing from eligible teams for a court
+  // Find the best 2-team pairing from eligible teams for a court.
+  // When maxMatchups is finite, skip pairs that have already met that many times.
   function bestPair(eligible: RRTeam[]): { team1: RRTeam; team2: RRTeam } | null {
     if (eligible.length < 2) return null;
-    // Sort by sit-out count descending so most-rested teams appear first
     const sorted = [...eligible].sort(
       (a, b) => (sitOutCount.get(b.teamId) ?? 0) - (sitOutCount.get(a.teamId) ?? 0)
     );
@@ -282,6 +283,7 @@ export function generateFixedSchedule(
     let bestScore = Infinity;
     for (let i = 0; i < sorted.length - 1; i++) {
       for (let j = i + 1; j < sorted.length; j++) {
+        if (getMatchups(sorted[i].teamId, sorted[j].teamId) >= maxMatchups) continue;
         const s = pairScore(sorted[i], sorted[j]);
         if (s < bestScore) {
           bestScore = s;
@@ -335,6 +337,33 @@ export function roundsFromMinGamesFixed(
   const rate = teams.length > 0 ? teamsPerRound / teams.length : 0;
   if (rate <= 0) return minGames;
   return Math.ceil(minGames / rate);
+}
+
+// Run men's and women's schedules independently and merge by round index.
+export function generateSplitSchedule(
+  players: RRPlayer[],
+  courts: RRCourt[],
+  mensRounds: number,
+  womensRounds: number,
+  overrides: RROverride[] = []
+): ReturnType<typeof generateSchedule> {
+  const males   = players.filter((p) => p.gender === "MALE");
+  const females = players.filter((p) => p.gender === "FEMALE");
+  const mensCourts   = courts.filter((c) => c.format === "MENS");
+  const womensCourts = courts.filter((c) => c.format === "WOMENS");
+
+  const mensSchedule = mensRounds > 0 && males.length > 0 && mensCourts.length > 0
+    ? generateSchedule(males, mensCourts, mensRounds, overrides)
+    : [];
+  const womensSchedule = womensRounds > 0 && females.length > 0 && womensCourts.length > 0
+    ? generateSchedule(females, womensCourts, womensRounds, overrides)
+    : [];
+
+  const total = Math.max(mensRounds, womensRounds);
+  return Array.from({ length: total }, (_, i) => [
+    ...(mensSchedule[i] ?? []),
+    ...(womensSchedule[i] ?? []),
+  ]);
 }
 
 // Independent per-gender calculation for MENS+WOMENS-only sessions.

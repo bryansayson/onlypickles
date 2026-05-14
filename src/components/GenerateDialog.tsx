@@ -68,6 +68,8 @@ function buildOptions(
 export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts, players, onGenerated }: Props) {
   const [rrType, setRrType] = useState<"single" | "double">("single");
   const [selectedRounds, setSelectedRounds] = useState<number | null>(null);
+  const [selectedMensRounds, setSelectedMensRounds] = useState<number | null>(null);
+  const [selectedWomensRounds, setSelectedWomensRounds] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -90,7 +92,18 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
     [numMales, numFemales, malesPerRound, femalesPerRound],
   );
 
+  const mensOptions = useMemo(
+    () => buildOptions(numMales, 0, malesPerRound, 0),
+    [numMales, malesPerRound],
+  );
+  const womensOptions = useMemo(
+    () => buildOptions(0, numFemales, 0, femalesPerRound),
+    [numFemales, femalesPerRound],
+  );
+
   const effectiveSelection = selectedRounds ?? roundOptions[0]?.rounds ?? null;
+  const effectiveMens   = selectedMensRounds   ?? mensOptions[0]?.rounds   ?? null;
+  const effectiveWomens = selectedWomensRounds ?? womensOptions[0]?.rounds ?? null;
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -100,6 +113,8 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
 
     const body = sessionFormat === "FIXED"
       ? { mode: rrType }
+      : isSplit
+      ? { mode: "splitExactRounds", value: effectiveMens, womensValue: effectiveWomens }
       : { mode: "exactRounds", value: effectiveSelection };
 
     const res = await fetch(`/api/sessions/${sessionId}/generate`, {
@@ -128,7 +143,9 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
     return g ? `${g} games per player` : "";
   }
 
-  const noOptions = sessionFormat === "ROTATING" && roundOptions.length === 0;
+  const noOptions = sessionFormat === "ROTATING" && (
+    isSplit ? mensOptions.length === 0 && womensOptions.length === 0 : roundOptions.length === 0
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -159,6 +176,42 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
             </div>
           ) : noOptions ? (
             <p className="text-sm text-zinc-500 text-center py-4">Add players and courts first.</p>
+          ) : isSplit ? (
+            <div className="flex flex-col gap-4">
+              {[
+                { label: "Men", color: "text-sky-400", dot: "bg-sky-400", options: mensOptions, selected: effectiveMens, onSelect: setSelectedMensRounds },
+                { label: "Women", color: "text-pink-400", dot: "bg-pink-400", options: womensOptions, selected: effectiveWomens, onSelect: setSelectedWomensRounds },
+              ].map(({ label, color, dot, options, selected, onSelect }) => (
+                <div key={label}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <span className={`w-2 h-2 rounded-full ${dot}`} />
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${color}`}>{label}</span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {options.map((opt) => {
+                      const isSelected = selected === opt.rounds;
+                      return (
+                        <button
+                          key={opt.rounds}
+                          type="button"
+                          onClick={() => onSelect(opt.rounds)}
+                          className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg border text-left transition-colors ${
+                            isSelected
+                              ? "bg-lime-500 text-black border-lime-500"
+                              : "bg-zinc-900 text-zinc-300 border-zinc-700 hover:border-zinc-500"
+                          }`}
+                        >
+                          <span className="font-semibold text-sm">{opt.rounds} rounds</span>
+                          <span className={`text-xs ${isSelected ? "text-black/60" : "text-zinc-500"}`}>
+                            {(label === "Men" ? opt.maleGames : opt.femaleGames) ?? "?"} games per player
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="flex flex-col gap-2">
               {roundOptions.map((opt) => {
@@ -188,7 +241,9 @@ export function GenerateDialog({ open, onClose, sessionId, sessionFormat, courts
 
           <Button
             type="submit"
-            disabled={loading || noOptions || (sessionFormat === "ROTATING" && !effectiveSelection)}
+            disabled={loading || noOptions || (sessionFormat === "ROTATING" && (
+              isSplit ? !effectiveMens || !effectiveWomens : !effectiveSelection
+            ))}
             className="bg-lime-500 hover:bg-lime-400 text-black font-bold"
           >
             {loading ? "Generating..." : "Generate"}

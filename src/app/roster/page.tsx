@@ -137,8 +137,8 @@ export default function RosterPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MALE">Man</SelectItem>
-                  <SelectItem value="FEMALE">Woman</SelectItem>
+                  <SelectItem value="MALE">Men&apos;s</SelectItem>
+                  <SelectItem value="FEMALE">Women&apos;s</SelectItem>
                 </SelectContent>
               </Select>
             </div>

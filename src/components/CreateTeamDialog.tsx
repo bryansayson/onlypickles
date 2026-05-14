@@ -42,11 +42,11 @@ export function CreateTeamDialog({
     if (p2 === id) { setP2(null); return; }
     if (!p1) { setP1(id); return; }
     if (!p2) { setP2(id); return; }
-    // swap second pick
-    setP2(id);
+    // both slots full — ignore
   }
 
   function isSelected(id: string) { return p1 === id || p2 === id; }
+  const bothSelected = !!p1 && !!p2;
 
   async function handleCreate() {
     if (!p1 || !p2) return;
@@ -86,42 +86,75 @@ export function CreateTeamDialog({
         <DialogHeader>
           <DialogTitle>Create Team</DialogTitle>
         </DialogHeader>
-        <p className="text-xs text-gray-400 -mt-1">Select 2 players to pair as a team.</p>
         {hasMixedCourt && (
-          <p className="text-xs text-purple-600 bg-purple-50 rounded px-2 py-1">
-            Mixed courts require 1 male + 1 female per team.
+          <p className="text-xs text-purple-300 bg-purple-900/30 border border-purple-800/50 rounded px-2 py-1 -mt-1">
+            Mixed courts require 1 men&apos;s + 1 women&apos;s player per team.
           </p>
         )}
-        <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
-          {availablePlayers.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => toggle(p.id)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${
-                isSelected(p.id)
-                  ? "border-green-500 bg-green-50"
-                  : "border-gray-200 bg-white"
-              }`}
-            >
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${p.gender === "MALE" ? "bg-blue-400" : "bg-pink-400"}`} />
-              <span className="font-medium text-sm flex-1">{p.name}</span>
-              <span className="text-xs text-gray-400">{p.gender === "MALE" ? "M" : "F"}</span>
-              {isSelected(p.id) && (
-                <span className="text-green-500 text-xs font-bold">
-                  {p1 === p.id ? "1" : "2"}
-                </span>
-              )}
-            </button>
-          ))}
+
+        {/* Selected slots */}
+        <div className="grid grid-cols-2 gap-2">
+          {[{ slot: p1, label: "Player 1" }, { slot: p2, label: "Player 2" }].map(({ slot, label }, idx) => {
+            const player = slot ? availablePlayers.find((p) => p.id === slot) : null;
+            return (
+              <div
+                key={idx}
+                className={`flex flex-col items-center justify-center gap-1 px-2 py-3 rounded-xl border min-h-[64px] text-center ${
+                  player ? "border-lime-600 bg-lime-950" : "border-zinc-700 border-dashed bg-zinc-900"
+                }`}
+              >
+                {player ? (
+                  <>
+                    <span className={`w-2 h-2 rounded-full ${player.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"}`} />
+                    <span className="text-sm font-semibold text-white leading-tight">{player.name}</span>
+                    <button
+                      onClick={() => idx === 0 ? setP1(null) : setP2(null)}
+                      className="text-xs text-zinc-500 hover:text-red-400"
+                    >remove</button>
+                  </>
+                ) : (
+                  <span className="text-xs text-zinc-600">{label}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Player grid */}
+        <div className="grid grid-cols-3 gap-1.5 max-h-52 overflow-y-auto">
+          {availablePlayers.map((p) => {
+            const selected = isSelected(p.id);
+            const disabled = bothSelected && !selected;
+            const isMale = p.gender === "MALE";
+            return (
+              <button
+                key={p.id}
+                onClick={() => toggle(p.id)}
+                disabled={disabled}
+                className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg border text-center transition-colors ${
+                  selected
+                    ? "border-lime-500 bg-lime-950"
+                    : disabled
+                    ? "border-zinc-800 bg-zinc-900 opacity-30 cursor-not-allowed"
+                    : isMale
+                    ? "border-sky-900 bg-sky-950 hover:bg-sky-900"
+                    : "border-pink-900 bg-pink-950 hover:bg-pink-900"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
+                <span className="text-xs font-medium text-white leading-tight break-words w-full">{p.name}</span>
+              </button>
+            );
+          })}
           {availablePlayers.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-4">No available players.</p>
+            <p className="text-sm text-zinc-500 text-center py-4 col-span-3">No available players.</p>
           )}
         </div>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-red-400">{error}</p>}
         <Button
           onClick={handleCreate}
           disabled={!canCreate || loading}
-          className="bg-green-600 hover:bg-green-700"
+          className="bg-lime-500 hover:bg-lime-400 text-black font-bold"
         >
           {loading ? "Creating..." : "Create Team"}
         </Button>

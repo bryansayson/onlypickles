@@ -110,9 +110,9 @@ export function GameCard({
 
   return (
     <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${cardStyle}`}>
-      {/* Header */}
+      {/* Badge row — flush left to align with team names */}
       {(roundNumber !== undefined || courtNumber !== undefined) && (
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-1.5">
           {roundNumber !== undefined && (
             <span className="text-xs text-zinc-500">Rd {roundNumber}</span>
           )}

@@ -382,6 +382,13 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       .sort((a, b) => a.name.localeCompare(b.name)) ?? [];
   }
 
+  function byeTeamsForRound(roundGames: Game[]): Team[] {
+    const playingTeamIds = new Set(
+      roundGames.flatMap((g) => [g.team1Id, g.team2Id].filter(Boolean) as string[])
+    );
+    return session?.teams.filter((t) => !playingTeamIds.has(t.id)) ?? [];
+  }
+
   if (!session) return <div className="text-zinc-400 py-12 text-center">Loading...</div>;
 
   return (
@@ -586,7 +593,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 </div>
 
                 {/* Teams */}
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-semibold text-zinc-200">Teams ({session.teams.length})</span>
                   {isAdmin && (
                     <Button onClick={() => setCreateTeamOpen(true)} size="sm" variant="outline" disabled={unteamed.length < 2}>
@@ -597,27 +604,67 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
                 {session.teams.length === 0 ? (
                   <p className="text-zinc-500 text-sm text-center py-4">No teams yet. Pair players up.</p>
-                ) : (
-                  <div className="flex flex-col gap-2 mb-4">
-                    {session.teams.map((team, i) => (
-                      <Card key={team.id} className="bg-zinc-900 border-zinc-800">
-                        <CardContent className="py-3 px-4 flex items-center justify-between gap-2">
-                          <span className="text-xs text-zinc-500 w-10 shrink-0">Team {i + 1}</span>
-                          <div className="flex items-center gap-2 flex-1">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${team.player1.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"}`} />
-                            <span className="text-sm font-medium">{team.player1.name}</span>
-                            <span className="text-zinc-600">&</span>
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${team.player2.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"}`} />
-                            <span className="text-sm font-medium">{team.player2.name}</span>
+                ) : (() => {
+                  type TeamPool = { label: string; dot: string; border: string; bg: string; teams: typeof session.teams };
+                  const pools: TeamPool[] = [
+                    {
+                      label: "Men's",
+                      dot: "bg-sky-400", border: "border-sky-900", bg: "bg-sky-950",
+                      teams: session.teams.filter(t => t.player1.gender === "MALE" && t.player2.gender === "MALE"),
+                    },
+                    {
+                      label: "Women's",
+                      dot: "bg-pink-400", border: "border-pink-900", bg: "bg-pink-950",
+                      teams: session.teams.filter(t => t.player1.gender === "FEMALE" && t.player2.gender === "FEMALE"),
+                    },
+                    {
+                      label: "Mixed",
+                      dot: "bg-purple-400", border: "border-purple-900", bg: "bg-purple-950",
+                      teams: session.teams.filter(t => t.player1.gender !== t.player2.gender),
+                    },
+                  ].filter(pool => pool.teams.length > 0);
+
+                  // Global team index for numbering
+                  let teamIdx = 0;
+
+                  return (
+                    <div className="flex flex-col gap-5 mb-4">
+                      {pools.map(pool => (
+                        <div key={pool.label}>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <span className={`w-2 h-2 rounded-full ${pool.dot}`} />
+                            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                              {pool.label} ({pool.teams.length})
+                            </span>
                           </div>
-                          {isAdmin && (
-                            <button onClick={() => deleteTeam(team.id)} className="text-zinc-600 hover:text-red-400 text-base">×</button>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+                          <div className="grid grid-cols-2 gap-2">
+                            {pool.teams.map((team) => {
+                              const n = ++teamIdx;
+                              return (
+                                <div key={team.id} className={`rounded-xl border ${pool.border} ${pool.bg} px-3 py-2.5`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-semibold text-zinc-500">Team {n}</span>
+                                    {isAdmin && (
+                                      <button onClick={() => deleteTeam(team.id)} className="text-zinc-600 hover:text-red-400 text-base leading-none">×</button>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    {[team.player1, team.player2].map((player) => (
+                                      <div key={player.id} className="flex items-center gap-1.5">
+                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${player.gender === "MALE" ? "bg-sky-400" : "bg-pink-400"}`} />
+                                        <span className="text-sm font-medium text-white truncate">{player.name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* Unteamed players */}
                 {unteamed.length > 0 && (
@@ -789,7 +836,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           ) : (
             <div className="flex flex-col gap-3">
               {rounds.map(([roundNum, roundGames], idx) => {
-                const byes = byesForRound(roundGames);
+                const byes = session.sessionFormat === "FIXED" ? [] : byesForRound(roundGames);
+                const byeTeams = session.sessionFormat === "FIXED" ? byeTeamsForRound(roundGames) : [];
                 const isRoundComplete = roundGames.every((g) => g.completed);
                 const isRoundEditing = roundGames.some((g) => !!scores[g.id]);
                 const isCurrent = !isRoundComplete && idx === rounds.findIndex(([, gs]) => !gs.every((g) => g.completed));
@@ -868,13 +916,31 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs text-zinc-500 font-medium">Bye:</span>
                         {byes.map((p) => (
-                          <span
-                            key={p.id}
-                            className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
-                          >
+                          <span key={p.id} className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
                             {p.name}
                           </span>
                         ))}
+                      </div>
+                    )}
+                    {byeTeams.length > 0 && (
+                      <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs text-zinc-500 font-medium">Bye:</span>
+                        {byeTeams.map((t) => {
+                          const isMensTeam = t.player1.gender === "MALE" && t.player2.gender === "MALE";
+                          const isWomensTeam = t.player1.gender === "FEMALE" && t.player2.gender === "FEMALE";
+                          return (
+                            <span
+                              key={t.id}
+                              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                isMensTeam ? "bg-sky-900/50 text-sky-300"
+                                : isWomensTeam ? "bg-pink-900/50 text-pink-300"
+                                : "bg-zinc-800 text-zinc-400"
+                              }`}
+                            >
+                              {t.player1.name} & {t.player2.name}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

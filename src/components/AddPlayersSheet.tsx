@@ -172,7 +172,7 @@ export function AddPlayersSheet({ open, onClose, sessionId, existingPlayerIds, o
                         : "bg-zinc-900 border-zinc-700 text-zinc-400"
                     }`}
                   >
-                    {g === "MALE" ? "Man" : "Woman"}
+                    {g === "MALE" ? "Men's" : "Women's"}
                   </button>
                 ))}
               </div>
