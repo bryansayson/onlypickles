@@ -501,16 +501,18 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 >
                   {session.sessionFormat === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
                 </button>
-                <button
-                  onClick={isAdmin ? toggleMedalRound : undefined}
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
-                    session.hasMedalRound
-                      ? "bg-yellow-900/50 text-yellow-400"
-                      : "bg-zinc-800 text-zinc-500"
-                  } ${isAdmin ? "hover:opacity-75 cursor-pointer" : "cursor-default"}`}
-                >
-                  {session.hasMedalRound ? "With Medal Rounds" : "No Medal Rounds"}
-                </button>
+                {session.sessionFormat === "ROTATING" && (
+                  <button
+                    onClick={isAdmin ? toggleMedalRound : undefined}
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                      session.hasMedalRound
+                        ? "bg-yellow-900/50 text-yellow-400"
+                        : "bg-zinc-800 text-zinc-500"
+                    } ${isAdmin ? "hover:opacity-75 cursor-pointer" : "cursor-default"}`}
+                  >
+                    {session.hasMedalRound ? "With Medal Rounds" : "No Medal Rounds"}
+                  </button>
+                )}
               </div>
             </div>
             {isAdmin && (
