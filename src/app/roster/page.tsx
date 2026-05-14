@@ -32,6 +32,7 @@ export default function RosterPage() {
   const [name, setName] = useState("");
   const [gender, setGender] = useState<"MALE" | "FEMALE">("MALE");
   const [loading, setLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   async function load() {
     const res = await fetch("/api/players");
@@ -57,7 +58,13 @@ export default function RosterPage() {
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/players/${id}`, { method: "DELETE" });
+    setDeleteError("");
+    const res = await fetch(`/api/players/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setDeleteError(data.error ?? "Failed to delete player.");
+      return;
+    }
     load();
   }
 
@@ -71,6 +78,13 @@ export default function RosterPage() {
           </Button>
         )}
       </div>
+
+      {deleteError && (
+        <div className="mb-4 px-3 py-2.5 rounded-lg bg-red-950/60 border border-red-900/60 text-sm text-red-300 flex items-start justify-between gap-2">
+          <span>{deleteError}</span>
+          <button onClick={() => setDeleteError("")} className="text-red-500 hover:text-red-300 shrink-0">×</button>
+        </div>
+      )}
 
       {players.length === 0 && (
         <p className="text-zinc-500 text-center py-12">No players yet.</p>
