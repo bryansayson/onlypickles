@@ -31,8 +31,9 @@ interface ScoreEntry {
   t2: string;
   onT1Change: (v: string) => void;
   onT2Change: (v: string) => void;
-  /** Provide to show a per-card Save button (new scores). Omit when Save is in the round header (edit mode). */
+  /** Provide to show a per-card Save button (new scores or individual edit). Omit when Save is in the round header (round edit mode). */
   onSave?: () => void;
+  onCancel?: () => void;
   saving?: boolean;
 }
 
@@ -58,6 +59,8 @@ interface Props {
   highlightWinner?: boolean;
   /** Pass when admin score entry is active */
   scoreEntry?: ScoreEntry;
+  /** Pass to show a per-card edit button (individual score correction) */
+  onEdit?: () => void;
 }
 
 function TeamRow({
@@ -120,6 +123,7 @@ export function GameCard({
   highlightResult,
   highlightWinner,
   scoreEntry,
+  onEdit,
 }: Props) {
   const hasScores = scoreEntry !== undefined;
   const t1Won = completed && team1Score !== null && team2Score !== null && team1Score > team2Score;
@@ -134,7 +138,7 @@ export function GameCard({
   return (
     <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${cardStyle}`}>
       {/* Badge row — flush left to align with team names */}
-      {(roundNumber !== undefined || courtNumber !== undefined || podName) && (
+      {(roundNumber !== undefined || courtNumber !== undefined || podName || onEdit) && (
         <div className="flex items-center gap-2 mb-1.5">
           {roundNumber !== undefined && (
             <span className="text-xs text-zinc-500">Rd {roundNumber}</span>
@@ -152,6 +156,14 @@ export function GameCard({
             }`}>
               {podName}
             </span>
+          )}
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="ml-auto text-xs text-zinc-600 hover:text-zinc-300 transition-colors"
+            >
+              edit
+            </button>
           )}
         </div>
       )}
@@ -186,16 +198,26 @@ export function GameCard({
       </div>
 
       {/* Per-card Save button (new scores only, not edit mode) */}
-      {hasScores && scoreEntry?.onSave && (
-        <div className="mt-2.5">
-          <Button
-            size="sm"
-            className="w-full h-8 text-xs bg-lime-500 hover:bg-lime-400 text-black font-bold"
-            onClick={scoreEntry.onSave}
-            disabled={!scoreEntry.t1 || !scoreEntry.t2 || scoreEntry.saving}
-          >
-            {scoreEntry.saving ? "Saving…" : "Save"}
-          </Button>
+      {hasScores && (scoreEntry?.onSave || scoreEntry?.onCancel) && (
+        <div className="mt-2.5 flex gap-2">
+          {scoreEntry?.onSave && (
+            <Button
+              size="sm"
+              className="flex-1 h-8 text-xs bg-lime-500 hover:bg-lime-400 text-black font-bold"
+              onClick={scoreEntry.onSave}
+              disabled={!scoreEntry.t1 || !scoreEntry.t2 || scoreEntry.saving}
+            >
+              {scoreEntry.saving ? "Saving…" : "Save"}
+            </Button>
+          )}
+          {scoreEntry?.onCancel && (
+            <button
+              onClick={scoreEntry.onCancel}
+              className="text-xs text-zinc-500 hover:text-zinc-300 px-2 transition-colors"
+            >
+              Cancel
+            </button>
+          )}
         </div>
       )}
     </div>

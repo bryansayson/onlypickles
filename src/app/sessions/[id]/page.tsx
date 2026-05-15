@@ -106,6 +106,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [scores, setScores] = useState<Record<string, { t1: string; t2: string }>>({});
   const [savingRound, setSavingRound] = useState<number | null>(null);
+  const [roundEditMode, setRoundEditMode] = useState<number | null>(null);
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [addOverrideOpen, setAddOverrideOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -311,12 +312,22 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       return next;
     });
     setSavingRound(null);
+    setRoundEditMode(null);
   }
 
   function cancelRound(roundGames: Game[]) {
+    setRoundEditMode(null);
     setScores((prev) => {
       const next = { ...prev };
       roundGames.forEach((g) => delete next[g.id]);
+      return next;
+    });
+  }
+
+  function clearGameScore(gameId: string) {
+    setScores((prev) => {
+      const next = { ...prev };
+      delete next[gameId];
       return next;
     });
   }
@@ -413,6 +424,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   });
 
   function editRound(roundGames: Game[]) {
+    setRoundEditMode(roundGames[0]?.roundNumber ?? null);
     setScores((prev) => {
       const next = { ...prev };
       for (const g of roundGames) {
@@ -1122,6 +1134,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 const byeTeams = session.sessionFormat === "FIXED" ? byeTeamsForRound(roundGames) : [];
                 const isRoundComplete = roundGames.every((g) => g.completed);
                 const isRoundEditing = roundGames.some((g) => !!scores[g.id]);
+                const isRoundEditMode = roundEditMode === Number(roundNum);
                 const isCurrent = !isRoundComplete && idx === rounds.findIndex(([, gs]) => !gs.every((g) => g.completed));
                 return (
                   <div
@@ -1148,7 +1161,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                           Edit
                         </button>
                       )}
-                      {isAdmin && isRoundEditing && (
+                      {isAdmin && isRoundEditMode && (
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => saveRound(roundGames)}
@@ -1169,6 +1182,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       {[...roundGames].sort((a, b) => a.court.number - b.court.number).map((game) => {
                         const sc = scores[game.id];
                         const isEditing = !!sc;
+                        const isIndividualEdit = isEditing && !isRoundEditMode;
                         const showInputs = isAdmin && (isEditing || !game.completed);
 
                         // Determine pod from players (rotating) or team (fixed)
@@ -1195,13 +1209,17 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             team1Score={game.team1Score}
                             team2Score={game.team2Score}
                             completed={game.completed}
-                            highlightWinner={game.completed}
+                            highlightWinner={game.completed && !isEditing}
+                            onEdit={isAdmin && game.completed && !isEditing && !isRoundEditing
+                              ? () => setScores((prev) => ({ ...prev, [game.id]: { t1: String(game.team1Score ?? ""), t2: String(game.team2Score ?? "") } }))
+                              : undefined}
                             scoreEntry={showInputs ? {
                               t1: sc?.t1 ?? "",
                               t2: sc?.t2 ?? "",
                               onT1Change: (v) => setScores((prev) => ({ ...prev, [game.id]: { t1: v, t2: sc?.t2 ?? "" } })),
                               onT2Change: (v) => setScores((prev) => ({ ...prev, [game.id]: { t1: sc?.t1 ?? "", t2: v } })),
-                              onSave: !game.completed ? () => submitScore(game.id) : undefined,
+                              onSave: (!game.completed || isIndividualEdit) ? () => submitScore(game.id) : undefined,
+                              onCancel: isIndividualEdit ? () => clearGameScore(game.id) : undefined,
                             } : undefined}
                           />
                         );
