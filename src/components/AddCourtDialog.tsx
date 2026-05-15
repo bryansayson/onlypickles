@@ -12,10 +12,10 @@ import { Button } from "@/components/ui/button";
 type CourtFormat = "MIXED" | "MENS" | "WOMENS" | "ANY";
 
 const options: { value: CourtFormat; label: string; description: string; color: string }[] = [
-  { value: "MIXED", label: "Mixed", description: "1 man + 1 woman per team", color: "border-purple-300 bg-purple-50 text-purple-700" },
-  { value: "MENS", label: "Men's", description: "Men's doubles only", color: "border-blue-300 bg-blue-50 text-blue-700" },
-  { value: "WOMENS", label: "Women's", description: "Women's doubles only", color: "border-pink-300 bg-pink-50 text-pink-700" },
-  { value: "ANY", label: "Open", description: "Any format — mixed, men's, or women's", color: "border-emerald-300 bg-emerald-50 text-emerald-700" },
+  { value: "MIXED", label: "Mixed", description: "1 man + 1 woman per team", color: "border-purple-500 bg-purple-900/50 text-purple-300" },
+  { value: "MENS", label: "Men's", description: "Men's doubles only", color: "border-sky-500 bg-sky-900/50 text-sky-300" },
+  { value: "WOMENS", label: "Women's", description: "Women's doubles only", color: "border-pink-500 bg-pink-900/50 text-pink-300" },
+  { value: "ANY", label: "Open", description: "Any format — mixed, men's, or women's", color: "border-yellow-500 bg-yellow-900 text-yellow-300" },
 ];
 
 interface Props {
@@ -41,7 +41,7 @@ export function AddCourtDialog({ open, onClose, onAdded }: Props) {
               className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 text-left transition-colors ${
                 selected === opt.value
                   ? opt.color
-                  : "border-zinc-700 bg-zinc-900 text-zinc-300"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
               }`}
             >
               <div>

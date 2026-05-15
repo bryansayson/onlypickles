@@ -152,8 +152,8 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
                   onClick={() => setSessionFormat(f)}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${
                     sessionFormat === f
-                      ? "bg-green-600 text-white border-green-600"
-                      : "bg-white text-gray-600 border-gray-200"
+                      ? "bg-lime-500 text-black border-lime-500"
+                      : "bg-zinc-800 text-zinc-400 border-zinc-700"
                   }`}
                 >
                   {f === "ROTATING" ? "Rotating Partners" : "Fixed Partners"}
@@ -169,7 +169,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
                 <button
                   type="button"
                   onClick={addCourt}
-                  className="text-xs text-green-600 font-medium hover:underline"
+                  className="text-xs text-lime-500 font-medium hover:underline"
                 >
                   + Add court
                 </button>
@@ -178,7 +178,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
             <div className="flex flex-col gap-2">
               {courts.map((court, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500 w-14 shrink-0">Court {court.number}</span>
+                  <span className="text-sm text-zinc-500 w-14 shrink-0">Court {court.number}</span>
                   <Select
                     value={court.format}
                     onValueChange={(v) => setFormat(i, v as CourtFormat)}
@@ -197,7 +197,7 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
                     <button
                       type="button"
                       onClick={() => removeCourt(i)}
-                      className="text-gray-400 hover:text-red-500 text-lg leading-none"
+                      className="text-zinc-500 hover:text-red-400 text-lg leading-none"
                     >
                       ×
                     </button>
@@ -212,15 +212,15 @@ export function AddSessionDialog({ open, onClose, onCreated }: Props) {
               type="checkbox"
               checked={hasMedalRound}
               onChange={(e) => setHasMedalRound(e.target.checked)}
-              className="w-4 h-4 rounded accent-green-600"
+              className="w-4 h-4 rounded accent-lime-500"
             />
-            <span className="text-sm text-gray-700">With medal rounds</span>
+            <span className="text-sm text-zinc-400">With medal rounds</span>
           </label>
 
           <Button
             type="submit"
             disabled={loading || !date}
-            className="bg-green-600 hover:bg-green-700 mt-1"
+            className="bg-lime-500 hover:bg-lime-400 text-black font-bold mt-1"
           >
             {loading ? "Creating..." : "Create Session"}
           </Button>

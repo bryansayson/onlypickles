@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Only Pickles",
-    short_name: "Pickles",
+    short_name: "Only Pickles",
     description: "Pickleball round robin scheduler",
     start_url: "/",
     display: "standalone",

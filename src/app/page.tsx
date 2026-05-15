@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { AddSessionDialog } from "@/components/AddSessionDialog";
 import { useAdmin } from "@/components/AdminProvider";
+import { formatColor, formatLabel } from "@/components/GameCard";
 
 interface Court {
   id: string;
@@ -23,19 +24,6 @@ interface Session {
   sessionPlayers: { id: string }[];
 }
 
-const formatLabel: Record<string, string> = {
-  MIXED: "Mixed",
-  MENS: "Men's",
-  WOMENS: "Women's",
-  ANY: "Open",
-};
-
-const formatColor: Record<string, string> = {
-  MIXED:  "bg-purple-900/50 text-purple-300",
-  MENS:   "bg-sky-900/50 text-sky-300",
-  WOMENS: "bg-pink-900/50 text-pink-300",
-  ANY:    "bg-emerald-900/50 text-emerald-300",
-};
 
 function SessionCard({ session, isAdmin, onDelete }: {
   session: Session;

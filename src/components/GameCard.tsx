@@ -4,10 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export const formatColor: Record<string, string> = {
-  MIXED:  "bg-purple-900/50 text-purple-300",
-  MENS:   "bg-sky-900/50 text-sky-300",
-  WOMENS: "bg-pink-900/50 text-pink-300",
-  ANY:    "bg-emerald-900/50 text-emerald-300",
+  MIXED:  "bg-purple-900 text-purple-300",
+  MENS:   "bg-sky-900 text-sky-300",
+  WOMENS: "bg-pink-900 text-pink-300",
+  ANY:    "bg-yellow-900 text-yellow-300",
 };
 
 export const formatLabel: Record<string, string> = {
@@ -18,12 +18,12 @@ export const formatLabel: Record<string, string> = {
 };
 
 export const podColors = [
-  "bg-violet-900/50 text-violet-300",
-  "bg-amber-900/50 text-amber-300",
-  "bg-teal-900/50 text-teal-300",
-  "bg-rose-900/50 text-rose-300",
-  "bg-indigo-900/50 text-indigo-300",
-  "bg-orange-900/50 text-orange-300",
+  "bg-violet-900 text-violet-300",
+  "bg-amber-900 text-amber-300",
+  "bg-cyan-900 text-cyan-300",
+  "bg-rose-900 text-rose-300",
+  "bg-indigo-900 text-indigo-300",
+  "bg-orange-900 text-orange-300",
 ];
 
 interface ScoreEntry {
