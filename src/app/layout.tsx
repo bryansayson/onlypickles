@@ -6,6 +6,7 @@ import { PickleballLogo } from "@/components/PickleballLogo";
 import { AdminProvider } from "@/components/AdminProvider";
 import { AdminToggle } from "@/components/AdminToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PwaRegistration } from "@/components/PwaRegistration";
 
 const nunito = Nunito({
   subsets: ["latin"],
@@ -16,6 +17,12 @@ const nunito = Nunito({
 export const metadata: Metadata = {
   title: "Only Pickles",
   description: "Pickleball round robin scheduler",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Only Pickles",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -23,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')}catch(e){}` }} />
+        <meta name="theme-color" content="#09090b" />
       </head>
       <body className={`${nunito.variable} font-sans bg-background text-foreground min-h-screen`}>
         <AdminProvider>
@@ -50,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </nav>
           <main className="max-w-2xl mx-auto px-4 py-6">{children}</main>
         </AdminProvider>
+        <PwaRegistration />
       </body>
     </html>
   );
