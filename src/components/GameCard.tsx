@@ -63,6 +63,41 @@ interface Props {
   onEdit?: () => void;
 }
 
+function NamesCell({ names, won, highlightName, highlightWinner }: {
+  names: string[]; won: boolean; highlightName?: string; highlightWinner?: boolean;
+}) {
+  return (
+    <span className={`text-sm font-medium leading-snug self-center min-w-0 ${highlightWinner && won ? "text-lime-400" : ""}`}>
+      {names.map((name, i) => (
+        <span key={i}>
+          {i > 0 && <span className={highlightWinner && won ? "text-lime-600" : "text-zinc-500"}> & </span>}
+          <span className={highlightName === name ? "underline underline-offset-2" : ""}>{name}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function ScoreInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Input
+      type="number"
+      inputMode="numeric"
+      min={0}
+      max={11}
+      className="w-14 h-8 text-center text-sm p-1 shrink-0 self-center"
+      placeholder="0"
+      value={value}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === "") { onChange(""); return; }
+        const n = Math.min(11, Math.max(0, parseInt(raw, 10)));
+        if (!isNaN(n)) onChange(String(n));
+      }}
+    />
+  );
+}
+
 function TeamRow({
   names,
   score,
@@ -70,8 +105,6 @@ function TeamRow({
   won,
   highlightName,
   colorWinner,
-  entryValue,
-  onEntryChange,
 }: {
   names: string[];
   score: number | null;
@@ -79,8 +112,6 @@ function TeamRow({
   won: boolean;
   highlightName?: string;
   colorWinner?: boolean;
-  entryValue?: string;
-  onEntryChange?: (v: string) => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -92,14 +123,7 @@ function TeamRow({
           </span>
         ))}
       </span>
-      {entryValue !== undefined && onEntryChange ? (
-        <Input
-          className="w-14 h-8 text-center text-sm p-1 shrink-0"
-          placeholder="0"
-          value={entryValue}
-          onChange={(e) => onEntryChange(e.target.value)}
-        />
-      ) : completed && score !== null ? (
+      {completed && score !== null ? (
         <span className={`text-lg font-bold tabular-nums w-14 text-right shrink-0 ${won ? "text-lime-400" : "text-zinc-500"}`}>
           {score}
         </span>
@@ -169,33 +193,46 @@ export function GameCard({
       )}
 
       {/* Matchup */}
-      <div className="flex flex-col gap-1.5">
-        <TeamRow
-          names={team1Names}
-          score={team1Score}
-          completed={completed}
-          won={t1Won}
-          highlightName={highlightName}
-          colorWinner={highlightWinner}
-          entryValue={scoreEntry?.t1}
-          onEntryChange={scoreEntry?.onT1Change}
-        />
-        <div className="flex items-center gap-2">
-          <div className="flex-1 border-t border-zinc-800" />
-          <span className="text-xs text-zinc-600">vs</span>
-          <div className="flex-1 border-t border-zinc-800" />
+      {hasScores ? (
+        <div className="grid gap-x-2 gap-y-1.5" style={{ gridTemplateColumns: "1fr auto" }}>
+          {/* Team 1 */}
+          <NamesCell names={team1Names} won={t1Won} highlightName={highlightName} highlightWinner={highlightWinner} />
+          <ScoreInput value={scoreEntry!.t1} onChange={scoreEntry!.onT1Change} />
+          {/* vs */}
+          <div className="col-span-2 flex items-center gap-2">
+            <div className="flex-1 border-t border-zinc-800" />
+            <span className="text-xs text-zinc-600">vs</span>
+            <div className="flex-1 border-t border-zinc-800" />
+          </div>
+          {/* Team 2 */}
+          <NamesCell names={team2Names} won={t2Won} highlightName={highlightName} highlightWinner={highlightWinner} />
+          <ScoreInput value={scoreEntry!.t2} onChange={scoreEntry!.onT2Change} />
         </div>
-        <TeamRow
-          names={team2Names}
-          score={team2Score}
-          completed={completed}
-          won={t2Won}
-          highlightName={highlightName}
-          colorWinner={highlightWinner}
-          entryValue={scoreEntry?.t2}
-          onEntryChange={scoreEntry?.onT2Change}
-        />
-      </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <TeamRow
+            names={team1Names}
+            score={team1Score}
+            completed={completed}
+            won={t1Won}
+            highlightName={highlightName}
+            colorWinner={highlightWinner}
+          />
+          <div className="flex items-center gap-2">
+            <div className="flex-1 border-t border-zinc-800" />
+            <span className="text-xs text-zinc-600">vs</span>
+            <div className="flex-1 border-t border-zinc-800" />
+          </div>
+          <TeamRow
+            names={team2Names}
+            score={team2Score}
+            completed={completed}
+            won={t2Won}
+            highlightName={highlightName}
+            colorWinner={highlightWinner}
+          />
+        </div>
+      )}
 
       {/* Per-card Save button (new scores only, not edit mode) */}
       {hasScores && (scoreEntry?.onSave || scoreEntry?.onCancel) && (

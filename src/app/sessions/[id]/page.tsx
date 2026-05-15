@@ -1177,8 +1177,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                       )}
                     </div>
 
-                    {/* Games — sorted by court number, 2 per row */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Games — sorted by court number */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {[...roundGames].sort((a, b) => a.court.number - b.court.number).map((game) => {
                         const sc = scores[game.id];
                         const isEditing = !!sc;
@@ -1359,7 +1359,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         {entryGames.length === 0 ? (
                           <p className="text-zinc-500 text-sm text-center py-4">No games found.</p>
                         ) : (
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {[...entryGames]
                               .sort((a, b) => a.roundNumber - b.roundNumber)
                               .map((g) => {
