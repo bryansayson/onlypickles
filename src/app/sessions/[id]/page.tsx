@@ -15,7 +15,7 @@ import { CreateTeamDialog } from "@/components/CreateTeamDialog";
 import { AddOverrideDialog } from "@/components/AddOverrideDialog";
 import { MedalRoundTab } from "@/components/MedalRoundTab";
 import { MatchupDisplay } from "@/components/MatchupDisplay";
-import { GameCard, formatColor, formatLabel } from "@/components/GameCard";
+import { GameCard, formatColor, formatLabel, podColors } from "@/components/GameCard";
 import {
   Select,
   SelectContent,
@@ -1230,28 +1230,37 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     {byes.length > 0 && (
                       <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs text-zinc-500 font-medium">Bye:</span>
-                        {byes.map((p) => (
-                          <span key={p.id} className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
-                            {p.name}
-                          </span>
-                        ))}
+                        {byes.map((p) => {
+                          const podIndex = session.pods.findIndex((pod) =>
+                            pod.sessionPlayers.some((sp) => sp.playerId === p.id)
+                          );
+                          const colorClass = podIndex >= 0
+                            ? podColors[podIndex % podColors.length]
+                            : "bg-zinc-800 text-zinc-400";
+                          return (
+                            <span key={p.id} className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorClass}`}>
+                              {p.name}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                     {byeTeams.length > 0 && (
                       <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs text-zinc-500 font-medium">Bye:</span>
                         {byeTeams.map((t) => {
+                          const podIndex = session.pods.findIndex((pod) =>
+                            pod.teams.some((pt) => pt.id === t.id)
+                          );
                           const isMensTeam = t.player1.gender === "MALE" && t.player2.gender === "MALE";
                           const isWomensTeam = t.player1.gender === "FEMALE" && t.player2.gender === "FEMALE";
+                          const colorClass = podIndex >= 0
+                            ? podColors[podIndex % podColors.length]
+                            : isMensTeam ? "bg-sky-900/50 text-sky-300"
+                            : isWomensTeam ? "bg-pink-900/50 text-pink-300"
+                            : "bg-zinc-800 text-zinc-400";
                           return (
-                            <span
-                              key={t.id}
-                              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                isMensTeam ? "bg-sky-900/50 text-sky-300"
-                                : isWomensTeam ? "bg-pink-900/50 text-pink-300"
-                                : "bg-zinc-800 text-zinc-400"
-                              }`}
-                            >
+                            <span key={t.id} className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorClass}`}>
                               {t.player1.name} & {t.player2.name}
                             </span>
                           );

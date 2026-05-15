@@ -17,7 +17,7 @@ export const formatLabel: Record<string, string> = {
   ANY:    "Open",
 };
 
-const podColors = [
+export const podColors = [
   "bg-violet-900/50 text-violet-300",
   "bg-amber-900/50 text-amber-300",
   "bg-teal-900/50 text-teal-300",
