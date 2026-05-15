@@ -82,7 +82,7 @@ interface Game {
 }
 
 interface Court {
-  format: "MIXED" | "MENS" | "WOMENS";
+  format: "MIXED" | "MENS" | "WOMENS" | "ANY";
 }
 
 interface Props {
