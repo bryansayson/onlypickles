@@ -825,12 +825,15 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               )}
 
               {isAdmin && (
-                <Button
-                  onClick={() => setGenerateOpen(true)}
-                  className="w-full mt-5 bg-lime-500 hover:bg-lime-400 text-black font-bold"
-                >
-                  Generate Schedule
-                </Button>
+                <div className="mt-5 flex justify-end">
+                  <Button
+                    onClick={() => setGenerateOpen(true)}
+                    size="sm"
+                    className="bg-lime-500 hover:bg-lime-400 text-black font-bold"
+                  >
+                    Generate Schedule
+                  </Button>
+                </div>
               )}
             </>
             );
@@ -1164,15 +1167,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 )}
 
 
-                {isAdmin && (
-                  <Button
-                    onClick={() => setGenerateOpen(true)}
-                    className="w-full mt-5 bg-lime-500 hover:bg-lime-400 text-black font-bold"
-                  >
-                    Generate Schedule
-                  </Button>
-                )}
-
                 <CreateTeamDialog
                   open={createTeamOpen}
                   onClose={() => setCreateTeamOpen(false)}
@@ -1291,14 +1285,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             </div>
           )}
 
-          {isAdmin && session.sessionPlayers.length > 0 && session.courts.length > 0 && (
-            <Button
-              onClick={() => setGenerateOpen(true)}
-              className="w-full mt-5 bg-lime-500 hover:bg-lime-400 text-black font-bold"
-            >
-              Generate Schedule
-            </Button>
-          )}
         </TabsContent>
 
         {/* SCHEDULE TAB */}
@@ -1355,12 +1341,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           })()}
           {games.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-zinc-400 mb-3">No schedule yet.</p>
-              {isAdmin && session.sessionPlayers.length > 0 && session.courts.length > 0 && (
-                <Button onClick={() => setGenerateOpen(true)} className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-                  Generate Schedule
-                </Button>
-              )}
+              <p className="text-zinc-400">No schedule yet. Use the Players tab to generate one.</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
