@@ -44,13 +44,15 @@ function gamesLabel(rounds: number, total: number, perRound: number): string | n
   return `${Math.floor(exact)}–${Math.ceil(exact)}`;
 }
 
-// Returns extra rounds needed so the larger division pool reaches `target` games.
-// Only applied when pools are within 2:1 ratio — beyond that the imbalance is
-// too extreme and would produce an unreasonable number of rounds.
-function divisionRounds(target: number, upper: number, lower: number): number {
-  if (upper === 0 || lower === 0) return 0;
+// Returns rounds needed so the larger division pool reaches `target` games.
+// `courtsOfType` is how many courts of the relevant format exist — each court
+// gives each division 2 slots per round, so the divisor scales with court count.
+// Only applied when pools are within 2:1 ratio.
+function divisionRounds(target: number, upper: number, lower: number, courtsOfType: number): number {
+  if (upper === 0 || lower === 0 || courtsOfType === 0) return 0;
   if (Math.max(upper, lower) / Math.min(upper, lower) > 2) return 0;
-  return Math.ceil((target * Math.max(upper, lower)) / 2);
+  const slotsPerDivPerRound = courtsOfType * 2;
+  return Math.ceil((target * Math.max(upper, lower)) / slotsPerDivPerRound);
 }
 
 function buildOptions(
@@ -62,6 +64,8 @@ function buildOptions(
   lowerMales = 0,
   upperFemales = 0,
   lowerFemales = 0,
+  mensCourts = 0,
+  womensCourts = 0,
 ): RoundOption[] {
   const targets = [5, 6, 7, 8];
   const hasMaleDivisions = upperMales > 0 && lowerMales > 0;
@@ -75,8 +79,8 @@ function buildOptions(
     let fRounds = numFemales > 0 && femalesPerRound > 0
       ? Math.ceil((target * numFemales) / femalesPerRound) : 0;
 
-    if (hasMaleDivisions) mRounds = Math.max(mRounds, divisionRounds(target, upperMales, lowerMales));
-    if (hasFemaleDivisions) fRounds = Math.max(fRounds, divisionRounds(target, upperFemales, lowerFemales));
+    if (hasMaleDivisions) mRounds = Math.max(mRounds, divisionRounds(target, upperMales, lowerMales, mensCourts));
+    if (hasFemaleDivisions) fRounds = Math.max(fRounds, divisionRounds(target, upperFemales, lowerFemales, womensCourts));
 
     const rounds = Math.max(mRounds, fRounds, 1);
     if (seen.has(rounds)) continue;
@@ -132,17 +136,17 @@ export function GenerateDialog({
   const lowerFemales = players.filter((p) => p.gender === "FEMALE" && p.division === "LOWER").length;
 
   const roundOptions = useMemo(
-    () => buildOptions(numMales, numFemales, malesPerRound, femalesPerRound, upperMales, lowerMales, upperFemales, lowerFemales),
-    [numMales, numFemales, malesPerRound, femalesPerRound, upperMales, lowerMales, upperFemales, lowerFemales],
+    () => buildOptions(numMales, numFemales, malesPerRound, femalesPerRound, upperMales, lowerMales, upperFemales, lowerFemales, numMens, numWomens),
+    [numMales, numFemales, malesPerRound, femalesPerRound, upperMales, lowerMales, upperFemales, lowerFemales, numMens, numWomens],
   );
 
   const mensOptions = useMemo(
-    () => buildOptions(numMales, 0, malesPerRound, 0, upperMales, lowerMales, 0, 0),
-    [numMales, malesPerRound, upperMales, lowerMales],
+    () => buildOptions(numMales, 0, malesPerRound, 0, upperMales, lowerMales, 0, 0, numMens, 0),
+    [numMales, malesPerRound, upperMales, lowerMales, numMens],
   );
   const womensOptions = useMemo(
-    () => buildOptions(0, numFemales, 0, femalesPerRound, 0, 0, upperFemales, lowerFemales),
-    [numFemales, femalesPerRound, upperFemales, lowerFemales],
+    () => buildOptions(0, numFemales, 0, femalesPerRound, 0, 0, upperFemales, lowerFemales, 0, numWomens),
+    [numFemales, femalesPerRound, upperFemales, lowerFemales, numWomens],
   );
 
   const effectiveSelection = selectedRounds ?? roundOptions[0]?.rounds ?? null;
