@@ -100,7 +100,48 @@ export function generateRotating(
     .filter((g) => g.playerIds.length > 0);
   const usePods = podPlayerGroups.length > 0;
 
-  const { mode, value, womensValue, maxGamesPerPlayer } = body;
+  const { mode, value, womensValue } = body;
+
+  // Compute the per-player game cap server-side from actual player/court/round data.
+  // For each gender×division group, the ceiling of (slots_per_round × rounds / group_size)
+  // is the most games any player in that group can get. We cap at the highest of these.
+  function computeCap(numRounds: number): number {
+    const groups: number[] = [];
+    const addGroup = (slots: number, size: number) => {
+      if (size > 0 && slots > 0) groups.push(Math.ceil((slots * numRounds) / size));
+    };
+
+    for (const gender of ["MALE", "FEMALE"] as const) {
+      const gPlayers = players.filter((p) => p.gender === gender);
+      if (gPlayers.length === 0) continue;
+
+      const upper = gPlayers.filter((p) => p.division === "UPPER");
+      const lower = gPlayers.filter((p) => p.division === "LOWER");
+      const hasDivs = upper.length > 0 && lower.length > 0;
+
+      // How many of this gender play per round across all relevant courts
+      const genderCourts = courts.filter((c) =>
+        c.format === (gender === "MALE" ? "MENS" : "WOMENS")
+      );
+      const mixedCourts = courts.filter((c) => c.format === "MIXED");
+      const anyCourts = courts.filter((c) => c.format === "ANY");
+      const slotsPerRound =
+        genderCourts.length * 4 +
+        mixedCourts.length * 2 +
+        anyCourts.length * 4;
+
+      if (hasDivs) {
+        // Each gender-specific court gives 2 slots per division per round
+        const divSlots = genderCourts.length * 2 + mixedCourts.length * 1;
+        addGroup(divSlots, upper.length);
+        addGroup(divSlots, lower.length);
+      } else {
+        addGroup(slotsPerRound, gPlayers.length);
+      }
+    }
+
+    return groups.length > 0 ? Math.max(...groups) : Infinity;
+  }
 
   let schedule: ReturnType<typeof generateSchedule>;
 
@@ -120,9 +161,11 @@ export function generateRotating(
       numRounds = value!;
     }
 
+    const cap = computeCap(numRounds);
+
     schedule = usePods
-      ? generatePodSchedules(players, podPlayerGroups.map((g) => ({ playerIds: g.playerIds })), courts, numRounds, rrOverrides, maxGamesPerPlayer)
-      : generateSchedule(players, courts, numRounds, rrOverrides, maxGamesPerPlayer);
+      ? generatePodSchedules(players, podPlayerGroups.map((g) => ({ playerIds: g.playerIds })), courts, numRounds, rrOverrides, cap)
+      : generateSchedule(players, courts, numRounds, rrOverrides, cap);
   }
 
   const data = schedule.flatMap((round, roundIdx) =>
