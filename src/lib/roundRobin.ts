@@ -42,7 +42,8 @@ export function generateSchedule(
   players: RRPlayer[],
   courts: RRCourt[],
   numRounds: number,
-  overrides: RROverride[] = []
+  overrides: RROverride[] = [],
+  maxGamesPerPlayer?: number
 ): Round[] {
   const genders = Object.fromEntries(players.map((p) => [p.id, p.gender]));
   const divisions = Object.fromEntries(players.map((p) => [p.id, p.division ?? null]));
@@ -50,7 +51,8 @@ export function generateSchedule(
   const partnerCount = new Map<string, number>();
   const opponentCount = new Map<string, number>();
   const sitOutCount = new Map<string, number>();
-  for (const p of players) sitOutCount.set(p.id, 0);
+  const gamesPlayed = new Map<string, number>();
+  for (const p of players) { sitOutCount.set(p.id, 0); gamesPlayed.set(p.id, 0); }
 
   function pairKey(a: string, b: string) {
     return a < b ? `${a}|${b}` : `${b}|${a}`;
@@ -205,7 +207,10 @@ export function generateSchedule(
     const used = new Set<string>();
 
     for (const court of courtOrder) {
-      const available = allIds.filter((id) => !used.has(id));
+      const available = allIds.filter((id) =>
+        !used.has(id) &&
+        (!maxGamesPerPlayer || (gamesPlayed.get(id) ?? 0) < maxGamesPerPlayer)
+      );
 
       let result: { team1: [string, string]; team2: [string, string] } | null = null;
 
@@ -224,7 +229,10 @@ export function generateSchedule(
 
       const { team1, team2 } = result;
       const four = [...team1, ...team2];
-      for (const id of four) used.add(id);
+      for (const id of four) {
+        used.add(id);
+        gamesPlayed.set(id, (gamesPlayed.get(id) ?? 0) + 1);
+      }
 
       inc(partnerCount, team1[0], team1[1]);
       inc(partnerCount, team2[0], team2[1]);
@@ -428,7 +436,8 @@ export function generatePodSchedules(
   podGroups: { playerIds: string[] }[],
   courts: RRCourt[],
   numRounds: number,
-  overrides: RROverride[] = []
+  overrides: RROverride[] = [],
+  maxGamesPerPlayer?: number
 ): ReturnType<typeof generateSchedule> {
   const allPodPlayerIds = new Set(podGroups.flatMap((g) => g.playerIds));
   const ungrouped = players.filter((p) => !allPodPlayerIds.has(p.id));
@@ -442,8 +451,8 @@ export function generatePodSchedules(
     ...(ungrouped.length > 0 ? [ungrouped] : []),
   ].filter((g) => g.length >= 4);
 
-  if (rawGroups.length === 0) return generateSchedule(players, courts, numRounds, overrides);
-  if (rawGroups.length === 1) return generateSchedule(rawGroups[0], courts, numRounds, overrides);
+  if (rawGroups.length === 0) return generateSchedule(players, courts, numRounds, overrides, maxGamesPerPlayer);
+  if (rawGroups.length === 1) return generateSchedule(rawGroups[0], courts, numRounds, overrides, maxGamesPerPlayer);
 
   // Per-group scheduling state (mirrors generateSchedule internals).
   type GState = {
@@ -462,6 +471,8 @@ export function generatePodSchedules(
   };
 
   const allDivisions = Object.fromEntries(players.map((p) => [p.id, p.division ?? null]));
+
+  const podGamesPlayed = new Map<string, number>(players.map((p) => [p.id, 0]));
 
   const states: GState[] = rawGroups.map((gp) => ({
     players: gp,
@@ -587,7 +598,10 @@ export function generatePodSchedules(
       let winnerStateIdx = -1;
 
       for (let gi = 0; gi < states.length; gi++) {
-        const available = states[gi].players.map((p) => p.id).filter((id) => !usedPlayers.has(id));
+        const available = states[gi].players.map((p) => p.id).filter((id) =>
+          !usedPlayers.has(id) &&
+          (!maxGamesPerPlayer || (podGamesPlayed.get(id) ?? 0) < maxGamesPerPlayer)
+        );
         const candidate = findBestForCourt(states[gi], available, court.format);
         if (candidate && (!winner || candidate.score < winner.score)) {
           winner = candidate;
@@ -602,7 +616,10 @@ export function generatePodSchedules(
       incC(st.partnerCount, team1[0], team1[1]);
       incC(st.partnerCount, team2[0], team2[1]);
       for (const a of team1) for (const b of team2) incC(st.opponentCount, a, b);
-      for (const id of [...team1, ...team2]) usedPlayers.add(id);
+      for (const id of [...team1, ...team2]) {
+        usedPlayers.add(id);
+        podGamesPlayed.set(id, (podGamesPlayed.get(id) ?? 0) + 1);
+      }
       round.push({ courtId: court.courtId, team1, team2 });
     }
 

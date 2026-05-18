@@ -41,7 +41,7 @@ type Result =
 export function generateRotating(
   session: Session,
   courts: Court[],
-  body: { mode?: string; value?: number; womensValue?: number }
+  body: { mode?: string; value?: number; womensValue?: number; maxGamesPerPlayer?: number }
 ): Result {
   const players = session.sessionPlayers.map((sp) => ({
     id: sp.playerId,
@@ -100,7 +100,7 @@ export function generateRotating(
     .filter((g) => g.playerIds.length > 0);
   const usePods = podPlayerGroups.length > 0;
 
-  const { mode, value, womensValue } = body;
+  const { mode, value, womensValue, maxGamesPerPlayer } = body;
 
   let schedule: ReturnType<typeof generateSchedule>;
 
@@ -121,8 +121,8 @@ export function generateRotating(
     }
 
     schedule = usePods
-      ? generatePodSchedules(players, podPlayerGroups.map((g) => ({ playerIds: g.playerIds })), courts, numRounds, rrOverrides)
-      : generateSchedule(players, courts, numRounds, rrOverrides);
+      ? generatePodSchedules(players, podPlayerGroups.map((g) => ({ playerIds: g.playerIds })), courts, numRounds, rrOverrides, maxGamesPerPlayer)
+      : generateSchedule(players, courts, numRounds, rrOverrides, maxGamesPerPlayer);
   }
 
   const data = schedule.flatMap((round, roundIdx) =>

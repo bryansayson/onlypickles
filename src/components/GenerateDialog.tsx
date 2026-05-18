@@ -33,9 +33,9 @@ interface Props {
 
 interface RoundOption {
   rounds: number;
+  maxGames: number;
   maleGames: string | null;
   femaleGames: string | null;
-  // per-division breakdown when divisions are active
   upperMaleGames?: string | null;
   lowerMaleGames?: string | null;
   upperFemaleGames?: string | null;
@@ -91,8 +91,14 @@ function buildOptions(
     if (seen.has(rounds)) continue;
     seen.add(rounds);
 
+    // maxGames = the ceiling of (total game slots / players) — no player should exceed this
+    const totalSlots = (malesPerRound + femalesPerRound) * rounds;
+    const totalPlayers = (numMales || 0) + (numFemales || 0);
+    const maxGames = totalPlayers > 0 ? Math.ceil(totalSlots / totalPlayers) : target;
+
     options.push({
       rounds,
+      maxGames,
       maleGames: gamesLabel(rounds, numMales, malesPerRound),
       femaleGames: gamesLabel(rounds, numFemales, femalesPerRound),
       upperMaleGames: hasMaleDivisions ? gamesLabel(rounds, upperMales, mensCourts * 2) : null,
@@ -199,7 +205,8 @@ export function GenerateDialog({
     } else if (isSplit) {
       body = { mode: "splitExactRounds", value: effectiveMens, womensValue: effectiveWomens };
     } else {
-      body = { mode: "exactRounds", value: effectiveSelection };
+      const selectedOpt = roundOptions.find((o) => o.rounds === effectiveSelection);
+      body = { mode: "exactRounds", value: effectiveSelection, maxGamesPerPlayer: selectedOpt?.maxGames };
     }
 
     const res = await fetch(`/api/sessions/${sessionId}/generate`, {
