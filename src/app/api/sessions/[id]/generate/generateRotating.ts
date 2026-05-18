@@ -43,11 +43,20 @@ export function generateRotating(
   courts: Court[],
   body: { mode?: string; value?: number; womensValue?: number; maxGamesPerPlayer?: number }
 ): Result {
-  const players = session.sessionPlayers.map((sp) => ({
-    id: sp.playerId,
-    gender: sp.player.gender as "MALE" | "FEMALE",
-    division: (sp as typeof sp & { division?: "UPPER" | "LOWER" | null }).division ?? null,
-  }));
+  const hasDivisions = (session as typeof session & { hasDivisions?: boolean }).hasDivisions ?? false;
+
+  const players = session.sessionPlayers
+    .filter((sp) => {
+      if (!hasDivisions) return true;
+      // When divisions are active, exclude players not assigned to a division
+      const div = (sp as typeof sp & { division?: "UPPER" | "LOWER" | null }).division;
+      return div === "UPPER" || div === "LOWER";
+    })
+    .map((sp) => ({
+      id: sp.playerId,
+      gender: sp.player.gender as "MALE" | "FEMALE",
+      division: (sp as typeof sp & { division?: "UPPER" | "LOWER" | null }).division ?? null,
+    }));
 
   if (players.length === 0) {
     return { ok: false, response: NextResponse.json({ error: "Add players to the session first." }, { status: 400 }) };
