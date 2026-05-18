@@ -49,15 +49,23 @@ function gamesLabel(rounds: number, total: number, perRound: number): string | n
   return `${Math.floor(exact)}–${Math.ceil(exact)}`;
 }
 
-// Returns rounds needed so the larger division pool reaches `target` games.
-// `courtsOfType` is how many courts of the relevant format exist — each court
-// gives each division 2 slots per round, so the divisor scales with court count.
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+// Returns the minimum round count so every player in the larger division pool
+// gets EXACTLY the same number of games (zero within-group discrepancy).
+// Snaps to the smallest multiple of `divSize / gcd(slots, divSize)` that
+// gives each player at least `target` games.
 // Only applied when pools are within 2:1 ratio.
 function divisionRounds(target: number, upper: number, lower: number, courtsOfType: number): number {
   if (upper === 0 || lower === 0 || courtsOfType === 0) return 0;
   if (Math.max(upper, lower) / Math.min(upper, lower) > 2) return 0;
-  const slotsPerDivPerRound = courtsOfType * 2;
-  return Math.ceil((target * Math.max(upper, lower)) / slotsPerDivPerRound);
+  const slots = courtsOfType * 2;          // slots per division per round
+  const divSize = Math.max(upper, lower);  // the pool that needs the most rounds
+  const period = divSize / gcd(slots, divSize); // rounds must be a multiple of this
+  const minR = Math.ceil((target * divSize) / slots);
+  return Math.ceil(minR / period) * period;
 }
 
 function buildOptions(
