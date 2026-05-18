@@ -94,15 +94,18 @@ export function generateSchedule(
       }
     }
 
-    return score;
-  }
+    // Division soft penalty: strongly prefer Upper+Lower pairings.
+    // Using 200 pts so the scheduler prefers U+L overwhelmingly, but once a
+    // player has accumulated ~4 extra sit-outs the sit-out bonus (-15×4×4 = -240)
+    // can overcome it — letting the algorithm equalize games across unequal pools.
+    function divPenalty(a: string, b: string): number {
+      const da = divisions[a], db = divisions[b];
+      if (!da || !db) return 0;
+      return da === db ? 200 : 0;
+    }
+    score += divPenalty(t1p1, t1p2) + divPenalty(t2p1, t2p2);
 
-  // Hard division constraint: a team is only valid if the two players are
-  // in opposite divisions (or at least one has no division assigned).
-  function validTeam(a: string, b: string): boolean {
-    const da = divisions[a], db = divisions[b];
-    if (!da || !db) return true;
-    return da !== db;
+    return score;
   }
 
   function sitBonus(ids: string[]): number {
@@ -151,7 +154,6 @@ export function generateSchedule(
         [[a, d], [b, cc]],
       ];
       for (const [t1, t2] of splits) {
-        if (!validTeam(t1[0], t1[1]) || !validTeam(t2[0], t2[1])) continue;
         const s = gameScore(t1[0], t1[1], t2[0], t2[1]) + sb;
         if (s < bestScore) { bestScore = s; best = { team1: t1, team2: t2 }; }
       }
@@ -183,7 +185,6 @@ export function generateSchedule(
         [[m1, f2], [m2, f1]],
       ];
       for (const [t1, t2] of splits) {
-        if (!validTeam(t1[0], t1[1]) || !validTeam(t2[0], t2[1])) continue;
         const s = gameScore(t1[0], t1[1], t2[0], t2[1]) + sb;
         if (s < bestScore) { bestScore = s; best = { team1: t1, team2: t2 }; }
       }
@@ -505,13 +506,15 @@ export function generatePodSchedules(
       if (type === "MUST_PARTNER" && both && !t1Tog && !t2Tog && getC(st.partnerCount, a, b) === 0)
         s += 10000;
     }
-    return s;
-  }
+    // Division soft penalty (same as generateSchedule)
+    function divP(a: string, b: string): number {
+      const da = allDivisions[a], db = allDivisions[b];
+      if (!da || !db) return 0;
+      return da === db ? 200 : 0;
+    }
+    s += divP(t1[0], t1[1]) + divP(t2[0], t2[1]);
 
-  function validTeamPod(a: string, b: string): boolean {
-    const da = allDivisions[a], db = allDivisions[b];
-    if (!da || !db) return true;
-    return da !== db;
+    return s;
   }
 
   function findBestForCourt(
@@ -550,7 +553,6 @@ export function generatePodSchedules(
                 [[m1, f1], [m2, f2]],
                 [[m1, f2], [m2, f1]],
               ] as [[string, string], [string, string]][]) {
-                if (!validTeamPod(t1[0], t1[1]) || !validTeamPod(t2[0], t2[1])) continue;
                 const s = scoreGame(st, t1, t2);
                 if (!best || s < best.score) best = { team1: t1, team2: t2, score: s };
               }
@@ -573,7 +575,6 @@ export function generatePodSchedules(
                 [[a, c], [b, d]],
                 [[a, d], [b, c]],
               ] as [[string, string], [string, string]][]) {
-                if (!validTeamPod(t1[0], t1[1]) || !validTeamPod(t2[0], t2[1])) continue;
                 const s = scoreGame(st, t1, t2);
                 if (!best || s < best.score) best = { team1: t1, team2: t2, score: s };
               }
