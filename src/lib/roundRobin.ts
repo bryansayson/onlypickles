@@ -12,6 +12,7 @@
 export interface RRPlayer {
   id: string;
   gender: "MALE" | "FEMALE";
+  division?: "UPPER" | "LOWER" | null;
 }
 
 export interface RRCourt {
@@ -44,6 +45,7 @@ export function generateSchedule(
   overrides: RROverride[] = []
 ): Round[] {
   const genders = Object.fromEntries(players.map((p) => [p.id, p.gender]));
+  const divisions = Object.fromEntries(players.map((p) => [p.id, p.division ?? null]));
 
   const partnerCount = new Map<string, number>();
   const opponentCount = new Map<string, number>();
@@ -84,7 +86,6 @@ export function generateSchedule(
       const bothInGame = [t1p1, t1p2, t2p1, t2p2].includes(a) && [t1p1, t1p2, t2p1, t2p2].includes(b);
 
       if (type === "MUST_NOT_PARTNER" && (t1Together || t2Together)) score += 10000;
-      // MUST_PARTNER = partner at least once: penalise being split only until they've partnered
       if (type === "MUST_PARTNER" && bothInGame && !t1Together && !t2Together) {
         const alreadyPartnered = get(partnerCount, a, b) > 0;
         if (!alreadyPartnered) score += 10000;
@@ -92,6 +93,14 @@ export function generateSchedule(
     }
 
     return score;
+  }
+
+  // Hard division constraint: a team is only valid if the two players are
+  // in opposite divisions (or at least one has no division assigned).
+  function validTeam(a: string, b: string): boolean {
+    const da = divisions[a], db = divisions[b];
+    if (!da || !db) return true;
+    return da !== db;
   }
 
   function sitBonus(ids: string[]): number {
@@ -128,6 +137,7 @@ export function generateSchedule(
         [[a, d], [b, cc]],
       ];
       for (const [t1, t2] of splits) {
+        if (!validTeam(t1[0], t1[1]) || !validTeam(t2[0], t2[1])) continue;
         const s = gameScore(t1[0], t1[1], t2[0], t2[1]) + sb;
         if (s < bestScore) { bestScore = s; best = { team1: t1, team2: t2 }; }
       }
@@ -159,6 +169,7 @@ export function generateSchedule(
         [[m1, f2], [m2, f1]],
       ];
       for (const [t1, t2] of splits) {
+        if (!validTeam(t1[0], t1[1]) || !validTeam(t2[0], t2[1])) continue;
         const s = gameScore(t1[0], t1[1], t2[0], t2[1]) + sb;
         if (s < bestScore) { bestScore = s; best = { team1: t1, team2: t2 }; }
       }
@@ -438,6 +449,8 @@ export function generatePodSchedules(
     m.set(k, (m.get(k) ?? 0) + 1);
   };
 
+  const allDivisions = Object.fromEntries(players.map((p) => [p.id, p.division ?? null]));
+
   const states: GState[] = rawGroups.map((gp) => ({
     players: gp,
     genders: Object.fromEntries(gp.map((p) => [p.id, p.gender])) as Record<string, "MALE" | "FEMALE">,
@@ -472,6 +485,12 @@ export function generatePodSchedules(
     return s;
   }
 
+  function validTeamPod(a: string, b: string): boolean {
+    const da = allDivisions[a], db = allDivisions[b];
+    if (!da || !db) return true;
+    return da !== db;
+  }
+
   function findBestForCourt(
     st: GState,
     available: string[],
@@ -496,6 +515,7 @@ export function generatePodSchedules(
                 [[m1, f1], [m2, f2]],
                 [[m1, f2], [m2, f1]],
               ] as [[string, string], [string, string]][]) {
+                if (!validTeamPod(t1[0], t1[1]) || !validTeamPod(t2[0], t2[1])) continue;
                 const s = scoreGame(st, t1, t2);
                 if (!best || s < best.score) best = { team1: t1, team2: t2, score: s };
               }
@@ -518,6 +538,7 @@ export function generatePodSchedules(
                 [[a, c], [b, d]],
                 [[a, d], [b, c]],
               ] as [[string, string], [string, string]][]) {
+                if (!validTeamPod(t1[0], t1[1]) || !validTeamPod(t2[0], t2[1])) continue;
                 const s = scoreGame(st, t1, t2);
                 if (!best || s < best.score) best = { team1: t1, team2: t2, score: s };
               }

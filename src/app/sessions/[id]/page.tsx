@@ -40,6 +40,7 @@ interface SessionPlayer {
   id: string;
   playerId: string;
   player: Player;
+  division: "UPPER" | "LOWER" | null;
 }
 
 interface Team {
@@ -115,6 +116,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [editingPodId, setEditingPodId] = useState<string | null>(null);
   const [podNameInput, setPodNameInput] = useState("");
   const [selectedPodTeamId, setSelectedPodTeamId] = useState<string | null>(null);
+  const [divisionsOpen, setDivisionsOpen] = useState(false);
 
   async function loadSession() {
     const res = await fetch(`/api/sessions/${id}`);
@@ -137,6 +139,31 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ playerId }),
     });
+    loadSession();
+  }
+
+  async function assignDivision(sessionPlayerId: string, division: "UPPER" | "LOWER" | null) {
+    await fetch(`/api/session-players/${sessionPlayerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ division }),
+    });
+    loadSession();
+  }
+
+  async function clearAllDivisions() {
+    await Promise.all(
+      session!.sessionPlayers
+        .filter((sp) => sp.division)
+        .map((sp) =>
+          fetch(`/api/session-players/${sp.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ division: null }),
+          })
+        )
+    );
+    setDivisionsOpen(false);
     loadSession();
   }
 
@@ -575,14 +602,34 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
             return (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
-                {isAdmin && (
-                  <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-                    + Add Players
-                  </Button>
-                )}
-              </div>
+              {(() => {
+                const hasDivisions = session.sessionPlayers.some((sp) => sp.division);
+                const divisionsActive = divisionsOpen || hasDivisions;
+                return (
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
+                    <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <button
+                          onClick={divisionsActive ? clearAllDivisions : () => setDivisionsOpen(true)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold transition-colors ${
+                            divisionsActive
+                              ? "border-amber-800 bg-amber-950/40 text-amber-400 hover:bg-red-950/40 hover:border-red-800 hover:text-red-400"
+                              : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500 hover:text-white"
+                          }`}
+                        >
+                          {divisionsActive ? "Divisions ✓" : "+ Divisions"}
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+                          + Add Players
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
               {session.sessionPlayers.length === 0 ? (
                 <p className="text-zinc-500 text-center py-10 text-sm">No players yet.</p>
               ) : (
@@ -594,6 +641,26 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     if (group.length === 0) return null;
                     const isMale = gender === "MALE";
                     const hint = idealHint(group.length, isMale ? malesPerRound : femalesPerRound);
+                    const hasDivisions = session.sessionPlayers.some((sp) => sp.division);
+                    const divisionsActive = divisionsOpen || hasDivisions;
+                    const upper = group.filter((sp) => sp.division === "UPPER");
+                    const lower = group.filter((sp) => sp.division === "LOWER");
+                    const unassigned = group.filter((sp) => !sp.division);
+
+                    function PlayerCard({ sp, cardClass }: { sp: typeof group[0]; cardClass: string }) {
+                      return (
+                        <div className={`relative rounded-lg border px-2 py-2.5 flex flex-col items-center gap-1 text-center ${cardClass}`}>
+                          {isAdmin && (
+                            <button
+                              onClick={() => removePlayer(sp.playerId)}
+                              className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
+                            >×</button>
+                          )}
+                          <span className="text-xs font-medium leading-tight break-words w-full pt-1">{sp.player.name}</span>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div key={gender}>
                         <div className="flex items-center gap-2 mb-2">
@@ -606,24 +673,94 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             </span>
                           )}
                         </div>
-                        <div className="grid grid-cols-4 gap-2">
-                          {group.map((sp) => (
-                            <div
-                              key={sp.id}
-                              className={`relative rounded-lg border px-2 py-2.5 flex flex-col items-center gap-1 text-center ${
-                                isMale ? "border-sky-900 bg-sky-950" : "border-pink-900 bg-pink-950"
-                              }`}
-                            >
-                              {isAdmin && (
-                                <button
-                                  onClick={() => removePlayer(sp.playerId)}
-                                  className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
-                                >×</button>
+
+                        {divisionsActive ? (
+                          <div className="flex flex-col gap-3">
+                            {/* Upper */}
+                            <div>
+                              <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-1.5">Upper</p>
+                              {upper.length > 0 ? (
+                                <div className="grid grid-cols-4 gap-2">
+                                  {upper.map((sp) => (
+                                    <div
+                                      key={sp.id}
+                                      className="relative rounded-lg border border-amber-900 bg-amber-950/40 px-2 py-2.5 flex flex-col items-center gap-1 text-center"
+                                    >
+                                      {isAdmin && (
+                                        <button
+                                          onClick={() => assignDivision(sp.id, null)}
+                                          className="absolute top-1 right-1.5 text-amber-900 hover:text-red-400 text-xs leading-none"
+                                        >×</button>
+                                      )}
+                                      <span className="text-xs font-medium leading-tight break-words w-full pt-1 text-amber-200">{sp.player.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-zinc-700 italic">None assigned</p>
                               )}
-                              <span className="text-xs font-medium leading-tight break-words w-full pt-1">{sp.player.name}</span>
                             </div>
-                          ))}
-                        </div>
+
+                            {/* Lower */}
+                            <div>
+                              <p className="text-[10px] font-bold text-sky-500 uppercase tracking-wider mb-1.5">Lower</p>
+                              {lower.length > 0 ? (
+                                <div className="grid grid-cols-4 gap-2">
+                                  {lower.map((sp) => (
+                                    <div
+                                      key={sp.id}
+                                      className="relative rounded-lg border border-sky-900 bg-sky-950/40 px-2 py-2.5 flex flex-col items-center gap-1 text-center"
+                                    >
+                                      {isAdmin && (
+                                        <button
+                                          onClick={() => assignDivision(sp.id, null)}
+                                          className="absolute top-1 right-1.5 text-sky-900 hover:text-red-400 text-xs leading-none"
+                                        >×</button>
+                                      )}
+                                      <span className="text-xs font-medium leading-tight break-words w-full pt-1 text-sky-200">{sp.player.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-zinc-700 italic">None assigned</p>
+                              )}
+                            </div>
+
+                            {/* Unassigned */}
+                            {unassigned.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Unassigned</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {unassigned.map((sp) => (
+                                    <div key={sp.id} className="flex items-stretch rounded-lg overflow-hidden border border-zinc-700">
+                                      <button
+                                        onClick={() => assignDivision(sp.id, "UPPER")}
+                                        className="text-[10px] font-bold px-2 bg-zinc-800 text-amber-600 hover:bg-amber-900/60 hover:text-amber-300 transition-colors"
+                                      >U</button>
+                                      <span className="text-xs px-2 py-1 bg-zinc-800 border-x border-zinc-700 text-zinc-300">
+                                        {sp.player.name.split(" ")[0]}
+                                      </span>
+                                      <button
+                                        onClick={() => assignDivision(sp.id, "LOWER")}
+                                        className="text-[10px] font-bold px-2 bg-zinc-800 text-sky-600 hover:bg-sky-900/60 hover:text-sky-300 transition-colors"
+                                      >L</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-4 gap-2">
+                            {group.map((sp) => (
+                              <PlayerCard
+                                key={sp.id}
+                                sp={sp}
+                                cardClass={isMale ? "border-sky-900 bg-sky-950" : "border-pink-900 bg-pink-950"}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}

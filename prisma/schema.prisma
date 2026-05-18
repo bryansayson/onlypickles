@@ -105,11 +105,12 @@ model Court {
 }
 
 model SessionPlayer {
-  id        String  @id @default(cuid())
+  id        String    @id @default(cuid())
   sessionId String
   playerId  String
   courtId   String?
   podId     String?
+  division  Division?
 
   session Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   player  Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -145,6 +146,11 @@ model Game {
 enum Gender {
   MALE
   FEMALE
+}
+
+enum Division {
+  UPPER
+  LOWER
 }
 
 enum CourtFormat {

@@ -46,6 +46,7 @@ export function generateRotating(
   const players = session.sessionPlayers.map((sp) => ({
     id: sp.playerId,
     gender: sp.player.gender as "MALE" | "FEMALE",
+    division: (sp as typeof sp & { division?: "UPPER" | "LOWER" | null }).division ?? null,
   }));
 
   if (players.length === 0) {

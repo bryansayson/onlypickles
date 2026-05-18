@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { podId } = await request.json();
-  const updated = await prisma.sessionPlayer.update({
-    where: { id },
-    data: { podId: podId ?? null },
-  });
+  const body = await request.json();
+  const data: Record<string, unknown> = {};
+  if ("podId" in body) data.podId = body.podId ?? null;
+  if ("division" in body) data.division = body.division ?? null;
+  const updated = await prisma.sessionPlayer.update({ where: { id }, data });
   return NextResponse.json(updated);
 }
