@@ -31,6 +31,7 @@ model Session {
   endTime       DateTime?
   sessionFormat  SessionFormat @default(ROTATING)
   hasMedalRound  Boolean       @default(false)
+  hasDivisions   Boolean       @default(false)
   createdAt      DateTime      @default(now())
 
   courts          Court[]

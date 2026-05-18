@@ -105,14 +105,26 @@ export function generateSchedule(
 
   function sitBonus(ids: string[]): number {
     // Subtract from group score: more sit-outs → more preferred
-    return -ids.reduce((s, id) => s + (sitOutCount.get(id) ?? 0), 0) * 3;
+    return -ids.reduce((s, id) => s + (sitOutCount.get(id) ?? 0), 0) * 15;
   }
 
   // Sort a pool by sit-out count descending, then cap size for perf.
+  // When divisions are active, cap each division independently so one side
+  // never crowds the other out of the candidate window.
   function candidates(pool: string[]): string[] {
-    return [...pool]
-      .sort((a, b) => (sitOutCount.get(b) ?? 0) - (sitOutCount.get(a) ?? 0))
-      .slice(0, MAX_CANDIDATES);
+    const sortBySitOut = (a: string, b: string) =>
+      (sitOutCount.get(b) ?? 0) - (sitOutCount.get(a) ?? 0);
+
+    const hasDivisions = pool.some((id) => divisions[id]);
+    if (!hasDivisions) {
+      return [...pool].sort(sortBySitOut).slice(0, MAX_CANDIDATES);
+    }
+
+    const half = Math.ceil(MAX_CANDIDATES / 2);
+    const upper = pool.filter((id) => divisions[id] === "UPPER").sort(sortBySitOut).slice(0, half);
+    const lower = pool.filter((id) => divisions[id] === "LOWER").sort(sortBySitOut).slice(0, half);
+    const unassigned = pool.filter((id) => !divisions[id]).sort(sortBySitOut).slice(0, half);
+    return [...upper, ...lower, ...unassigned];
   }
 
   // Exhaustive search over all C(n,4) combinations for a non-mixed court.
@@ -282,8 +294,8 @@ export function generateFixedSchedule(
   function pairScore(a: RRTeam, b: RRTeam): number {
     return (
       getMatchups(a.teamId, b.teamId) * 6 -
-      (sitOutCount.get(a.teamId) ?? 0) * 3 -
-      (sitOutCount.get(b.teamId) ?? 0) * 3
+      (sitOutCount.get(a.teamId) ?? 0) * 15 -
+      (sitOutCount.get(b.teamId) ?? 0) * 15
     );
   }
 
@@ -471,7 +483,7 @@ export function generatePodSchedules(
       getC(st.opponentCount, t1[0], t2[1]) * 2 +
       getC(st.opponentCount, t1[1], t2[0]) * 2 +
       getC(st.opponentCount, t1[1], t2[1]) * 2 -
-      [...t1, ...t2].reduce((sum, id) => sum + (st.sitOutCount.get(id) ?? 0), 0) * 3;
+      [...t1, ...t2].reduce((sum, id) => sum + (st.sitOutCount.get(id) ?? 0), 0) * 15;
     for (const ov of overrides) {
       const { player1Id: a, player2Id: b, type } = ov;
       if (!st.players.some((p) => p.id === a) || !st.players.some((p) => p.id === b)) continue;
@@ -496,9 +508,21 @@ export function generatePodSchedules(
     available: string[],
     format: "MIXED" | "MENS" | "WOMENS" | "ANY"
   ): { team1: [string, string]; team2: [string, string]; score: number } | null {
-    const sorted = [...available]
-      .sort((a, b) => (st.sitOutCount.get(b) ?? 0) - (st.sitOutCount.get(a) ?? 0))
-      .slice(0, MAX_CANDIDATES);
+    const sortBySitOut = (a: string, b: string) =>
+      (st.sitOutCount.get(b) ?? 0) - (st.sitOutCount.get(a) ?? 0);
+
+    const hasDivisions = available.some((id) => allDivisions[id]);
+    let sorted: string[];
+    if (hasDivisions) {
+      const half = Math.ceil(MAX_CANDIDATES / 2);
+      sorted = [
+        ...available.filter((id) => allDivisions[id] === "UPPER").sort(sortBySitOut).slice(0, half),
+        ...available.filter((id) => allDivisions[id] === "LOWER").sort(sortBySitOut).slice(0, half),
+        ...available.filter((id) => !allDivisions[id]).sort(sortBySitOut).slice(0, half),
+      ];
+    } else {
+      sorted = [...available].sort(sortBySitOut).slice(0, MAX_CANDIDATES);
+    }
 
     let best: { team1: [string, string]; team2: [string, string]; score: number } | null = null;
 
@@ -663,8 +687,8 @@ export function generateFixedPodSchedules(
         if (getM(st.matchupCount, sorted[i].teamId, sorted[j].teamId) >= st.maxMatchups) continue;
         const s =
           getM(st.matchupCount, sorted[i].teamId, sorted[j].teamId) * 6 -
-          (st.sitOutCount.get(sorted[i].teamId) ?? 0) * 3 -
-          (st.sitOutCount.get(sorted[j].teamId) ?? 0) * 3;
+          (st.sitOutCount.get(sorted[i].teamId) ?? 0) * 15 -
+          (st.sitOutCount.get(sorted[j].teamId) ?? 0) * 15;
         if (!best || s < best.score) best = { team1: sorted[i], team2: sorted[j], score: s };
       }
     }

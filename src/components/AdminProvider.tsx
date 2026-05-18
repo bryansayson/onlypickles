@@ -27,15 +27,14 @@ export function useAdmin() {
 }
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("op_admin") === "true";
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setIsAdmin(localStorage.getItem("op_admin") === "true");
-  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();

@@ -8,5 +8,11 @@ function createClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// In development, skip the global cache so that `prisma generate` changes are
+// picked up immediately without restarting the dev server. The Neon HTTP
+// adapter is stateless (no persistent connection pool), so creating a fresh
+// client on each module load is safe.
+export const prisma =
+  process.env.NODE_ENV === "production"
+    ? (globalForPrisma.prisma ?? (globalForPrisma.prisma = createClient()))
+    : createClient();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useRef, useState, use } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,6 +70,7 @@ interface Session {
   endTime: string | null;
   sessionFormat: "ROTATING" | "FIXED";
   hasMedalRound: boolean;
+  hasDivisions: boolean;
   courts: Court[];
   sessionPlayers: SessionPlayer[];
   teams: Team[];
@@ -116,7 +117,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [editingPodId, setEditingPodId] = useState<string | null>(null);
   const [podNameInput, setPodNameInput] = useState("");
   const [selectedPodTeamId, setSelectedPodTeamId] = useState<string | null>(null);
-  const [divisionsOpen, setDivisionsOpen] = useState(false);
+  const [divPickerOpen, setDivPickerOpen] = useState<"UPPER" | "LOWER" | null>(null);
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState(600);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function loadSession() {
     const res = await fetch(`/api/sessions/${id}`);
@@ -133,6 +137,23 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     loadGames();
   }, [id]);
 
+  useEffect(() => {
+    if (timerRunning) {
+      timerRef.current = setInterval(() => {
+        setTimerSecondsLeft((prev) => {
+          if (prev <= 1) {
+            setTimerRunning(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [timerRunning]);
+
   async function removePlayer(playerId: string) {
     await fetch(`/api/sessions/${id}/players`, {
       method: "DELETE",
@@ -143,17 +164,36 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   }
 
   async function assignDivision(sessionPlayerId: string, division: "UPPER" | "LOWER" | null) {
-    await fetch(`/api/session-players/${sessionPlayerId}`, {
+    const res = await fetch(`/api/session-players/${sessionPlayerId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ division }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed to save division: ${err.message ?? err.error ?? res.status}`);
+      return;
+    }
+    loadSession();
+  }
+
+  async function openDivisions() {
+    await fetch(`/api/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hasDivisions: true }),
     });
     loadSession();
   }
 
   async function clearAllDivisions() {
-    await Promise.all(
-      session!.sessionPlayers
+    await Promise.all([
+      fetch(`/api/sessions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hasDivisions: false }),
+      }),
+      ...session!.sessionPlayers
         .filter((sp) => sp.division)
         .map((sp) =>
           fetch(`/api/session-players/${sp.id}`, {
@@ -161,9 +201,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ division: null }),
           })
-        )
-    );
-    setDivisionsOpen(false);
+        ),
+    ]);
     loadSession();
   }
 
@@ -423,16 +462,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     function perGame(val: number, played: number) { return played > 0 ? val / played : 0; }
 
     return entries.sort((a, b) => {
-      if (allPlayedSame) {
-        return b.wins - a.wins
-          || b.pointDiff - a.pointDiff
-          || b.scored - a.scored
-          || a.allowed - b.allowed;
-      }
-      // Unequal games: normalise everything per game
-      return perGame(b.pointDiff, b.played) - perGame(a.pointDiff, a.played)
-        || perGame(b.scored, b.played) - perGame(a.scored, a.played)
-        || perGame(a.allowed, a.played) - perGame(b.allowed, b.played);
+      if (allPlayedSame) return b.pointDiff - a.pointDiff;
+      const aPerGame = a.played > 0 ? a.pointDiff / a.played : 0;
+      const bPerGame = b.played > 0 ? b.pointDiff / b.played : 0;
+      return bPerGame - aPerGame;
     });
   })();
 
@@ -487,6 +520,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   }
 
   if (!session) return <div className="text-zinc-400 py-12 text-center">Loading...</div>;
+
+  const divisionMap = Object.fromEntries(
+    session.sessionPlayers.map((sp) => [sp.playerId, sp.division ?? null])
+  );
 
   return (
     <div>
@@ -581,6 +618,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
         {/* PLAYERS TAB */}
         <TabsContent value="players">
+          {/* ── Shared header ── */}
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
+            {isAdmin && (
+              <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+                + Add Players
+              </Button>
+            )}
+          </div>
+
           {/* ── Rotating: gender groups grid ── */}
           {session.sessionFormat === "ROTATING" && (() => {
             const mensCourts  = session.courts.filter((c) => c.format === "MENS").length;
@@ -602,34 +649,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
             return (
             <>
-              {(() => {
-                const hasDivisions = session.sessionPlayers.some((sp) => sp.division);
-                const divisionsActive = divisionsOpen || hasDivisions;
-                return (
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
-                    <div className="flex items-center gap-2">
-                      {isAdmin && (
-                        <button
-                          onClick={divisionsActive ? clearAllDivisions : () => setDivisionsOpen(true)}
-                          className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold transition-colors ${
-                            divisionsActive
-                              ? "border-amber-800 bg-amber-950/40 text-amber-400 hover:bg-red-950/40 hover:border-red-800 hover:text-red-400"
-                              : "border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500 hover:text-white"
-                          }`}
-                        >
-                          {divisionsActive ? "Divisions ✓" : "+ Divisions"}
-                        </button>
-                      )}
-                      {isAdmin && (
-                        <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-                          + Add Players
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
               {session.sessionPlayers.length === 0 ? (
                 <p className="text-zinc-500 text-center py-10 text-sm">No players yet.</p>
               ) : (
@@ -641,26 +660,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     if (group.length === 0) return null;
                     const isMale = gender === "MALE";
                     const hint = idealHint(group.length, isMale ? malesPerRound : femalesPerRound);
-                    const hasDivisions = session.sessionPlayers.some((sp) => sp.division);
-                    const divisionsActive = divisionsOpen || hasDivisions;
                     const upper = group.filter((sp) => sp.division === "UPPER");
                     const lower = group.filter((sp) => sp.division === "LOWER");
-                    const unassigned = group.filter((sp) => !sp.division);
-
-                    function PlayerCard({ sp, cardClass }: { sp: typeof group[0]; cardClass: string }) {
-                      return (
-                        <div className={`relative rounded-lg border px-2 py-2.5 flex flex-col items-center gap-1 text-center ${cardClass}`}>
-                          {isAdmin && (
-                            <button
-                              onClick={() => removePlayer(sp.playerId)}
-                              className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
-                            >×</button>
-                          )}
-                          <span className="text-xs font-medium leading-tight break-words w-full pt-1">{sp.player.name}</span>
-                        </div>
-                      );
-                    }
-
                     return (
                       <div key={gender}>
                         <div className="flex items-center gap-2 mb-2">
@@ -673,94 +674,27 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             </span>
                           )}
                         </div>
-
-                        {divisionsActive ? (
-                          <div className="flex flex-col gap-3">
-                            {/* Upper */}
-                            <div>
-                              <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider mb-1.5">Upper</p>
-                              {upper.length > 0 ? (
-                                <div className="grid grid-cols-4 gap-2">
-                                  {upper.map((sp) => (
-                                    <div
-                                      key={sp.id}
-                                      className="relative rounded-lg border border-amber-900 bg-amber-950/40 px-2 py-2.5 flex flex-col items-center gap-1 text-center"
-                                    >
-                                      {isAdmin && (
-                                        <button
-                                          onClick={() => assignDivision(sp.id, null)}
-                                          className="absolute top-1 right-1.5 text-amber-900 hover:text-red-400 text-xs leading-none"
-                                        >×</button>
-                                      )}
-                                      <span className="text-xs font-medium leading-tight break-words w-full pt-1 text-amber-200">{sp.player.name}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-xs text-zinc-700 italic">None assigned</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {group.map((sp) => (
+                            <div
+                              key={sp.id}
+                              className={`relative rounded-lg border px-2 py-2.5 flex flex-col items-center gap-1 text-center ${
+                                isMale ? "border-sky-900 bg-sky-950" : "border-pink-900 bg-pink-950"
+                              }`}
+                            >
+                              {isAdmin && (
+                                <button
+                                  onClick={() => removePlayer(sp.playerId)}
+                                  className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
+                                >×</button>
                               )}
-                            </div>
-
-                            {/* Lower */}
-                            <div>
-                              <p className="text-[10px] font-bold text-sky-500 uppercase tracking-wider mb-1.5">Lower</p>
-                              {lower.length > 0 ? (
-                                <div className="grid grid-cols-4 gap-2">
-                                  {lower.map((sp) => (
-                                    <div
-                                      key={sp.id}
-                                      className="relative rounded-lg border border-sky-900 bg-sky-950/40 px-2 py-2.5 flex flex-col items-center gap-1 text-center"
-                                    >
-                                      {isAdmin && (
-                                        <button
-                                          onClick={() => assignDivision(sp.id, null)}
-                                          className="absolute top-1 right-1.5 text-sky-900 hover:text-red-400 text-xs leading-none"
-                                        >×</button>
-                                      )}
-                                      <span className="text-xs font-medium leading-tight break-words w-full pt-1 text-sky-200">{sp.player.name}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-xs text-zinc-700 italic">None assigned</p>
+                              {sp.division && (
+                                <span className={`absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full ${sp.division === "UPPER" ? "bg-amber-400" : "bg-sky-400"}`} />
                               )}
+                              <span className="text-xs font-medium leading-tight break-words w-full pt-1">{sp.player.name}</span>
                             </div>
-
-                            {/* Unassigned */}
-                            {unassigned.length > 0 && (
-                              <div>
-                                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Unassigned</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {unassigned.map((sp) => (
-                                    <div key={sp.id} className="flex items-stretch rounded-lg overflow-hidden border border-zinc-700">
-                                      <button
-                                        onClick={() => assignDivision(sp.id, "UPPER")}
-                                        className="text-[10px] font-bold px-2 bg-zinc-800 text-amber-600 hover:bg-amber-900/60 hover:text-amber-300 transition-colors"
-                                      >U</button>
-                                      <span className="text-xs px-2 py-1 bg-zinc-800 border-x border-zinc-700 text-zinc-300">
-                                        {sp.player.name.split(" ")[0]}
-                                      </span>
-                                      <button
-                                        onClick={() => assignDivision(sp.id, "LOWER")}
-                                        className="text-[10px] font-bold px-2 bg-zinc-800 text-sky-600 hover:bg-sky-900/60 hover:text-sky-300 transition-colors"
-                                      >L</button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-4 gap-2">
-                            {group.map((sp) => (
-                              <PlayerCard
-                                key={sp.id}
-                                sp={sp}
-                                cardClass={isMale ? "border-sky-900 bg-sky-950" : "border-pink-900 bg-pink-950"}
-                              />
-                            ))}
-                          </div>
-                        )}
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
@@ -891,6 +825,138 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
+              {/* ── Divisions section (rotating mode) ── */}
+              {isAdmin && session.sessionPlayers.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-sm font-semibold text-zinc-200">Divisions</span>
+                      <span className="text-xs text-zinc-500 ml-2">upper &amp; lower skill pools</span>
+                    </div>
+                    {session.hasDivisions ? (
+                      <button
+                        onClick={clearAllDivisions}
+                        className="text-xs text-zinc-500 hover:text-red-400 font-medium transition-colors"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        onClick={openDivisions}
+                        className="text-xs text-lime-400 hover:text-lime-300 font-medium"
+                      >
+                        + Add Division
+                      </button>
+                    )}
+                  </div>
+
+                  {!session.hasDivisions ? (
+                    <p className="text-xs text-zinc-600 italic">No divisions — everyone mixes freely.</p>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {(["UPPER", "LOWER"] as const).map((div) => {
+                        const isUpper = div === "UPPER";
+                        const assigned = session.sessionPlayers
+                          .filter((sp) => sp.division === div)
+                          .sort((a, b) => a.player.name.localeCompare(b.player.name));
+                        const unassigned = session.sessionPlayers
+                          .filter((sp) => !sp.division)
+                          .sort((a, b) => a.player.name.localeCompare(b.player.name));
+                        return (
+                          <div key={div} className="rounded-xl border border-zinc-700 bg-zinc-900 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${isUpper ? "bg-amber-400" : "bg-sky-400"}`} />
+                                <span className={`text-sm font-semibold ${isUpper ? "text-amber-300" : "text-sky-300"}`}>
+                                  {isUpper ? "Upper" : "Lower"}
+                                </span>
+                              </div>
+                              <span className="text-xs text-zinc-500">{assigned.length} players</span>
+                            </div>
+
+                            {assigned.length > 0 ? (
+                              <div className="flex flex-col gap-2 mb-2">
+                                {(["MALE", "FEMALE"] as const).map((gender) => {
+                                  const bucket = assigned.filter((sp) => sp.player.gender === gender);
+                                  if (bucket.length === 0) return null;
+                                  const isMale = gender === "MALE";
+                                  return (
+                                    <div key={gender}>
+                                      <div className="flex items-center gap-1 mb-1">
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
+                                        <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">{isMale ? "Men" : "Women"}</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {bucket.map((sp) => (
+                                          <span
+                                            key={sp.id}
+                                            className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                                              isMale ? "bg-sky-900/60 text-sky-300 border border-sky-800" : "bg-pink-900/60 text-pink-300 border border-pink-800"
+                                            }`}
+                                          >
+                                            {sp.player.name}
+                                            <button
+                                              onClick={() => assignDivision(sp.id, null)}
+                                              className="text-zinc-500 hover:text-red-400 leading-none ml-0.5"
+                                            >×</button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-zinc-600 italic mb-2">No players assigned.</p>
+                            )}
+
+                            {unassigned.length > 0 && (
+                              <div>
+                                {divPickerOpen === div ? (
+                                  <div className="mt-1">
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {unassigned.map((sp) => {
+                                        const isMale = sp.player.gender === "MALE";
+                                        return (
+                                          <button
+                                            key={sp.id}
+                                            onClick={() => assignDivision(sp.id, div)}
+                                            className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+                                              isMale
+                                                ? "bg-sky-950 text-sky-400 border border-sky-800 hover:bg-sky-900"
+                                                : "bg-pink-950 text-pink-400 border border-pink-800 hover:bg-pink-900"
+                                            }`}
+                                          >
+                                            + {sp.player.name}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    <button
+                                      onClick={() => setDivPickerOpen(null)}
+                                      className="text-xs text-zinc-500 hover:text-zinc-300 mt-1.5"
+                                    >
+                                      Done
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setDivPickerOpen(div)}
+                                    className="text-xs text-lime-500 hover:text-lime-400 font-medium"
+                                  >
+                                    + Add players
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isAdmin && (
                 <Button
                   onClick={() => setGenerateOpen(true)}
@@ -916,16 +982,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
             return (
               <>
-                {/* Add players */}
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
-                  {isAdmin && (
-                    <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-                      + Add Players
-                    </Button>
-                  )}
-                </div>
-
                 {/* Teams header */}
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-semibold text-zinc-200">Teams ({session.teams.length})</span>
@@ -1255,6 +1311,56 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
         {/* SCHEDULE TAB */}
         <TabsContent value="schedule">
+          {/* Round timer */}
+          {games.length > 0 && (() => {
+            const mins = Math.floor(timerSecondsLeft / 60);
+            const secs = timerSecondsLeft % 60;
+            const display = `${mins}:${secs.toString().padStart(2, "0")}`;
+            const expired = timerSecondsLeft === 0;
+            const low = timerSecondsLeft <= 60 && !expired;
+            return (
+              <div className={`flex items-center justify-between rounded-xl px-4 py-3 mb-4 border ${
+                expired ? "bg-red-950/50 border-red-800" : low ? "bg-amber-950/30 border-amber-800" : "bg-zinc-800 border-zinc-700"
+              }`}>
+                <span className={`text-2xl font-black tabular-nums tracking-tight ${
+                  expired ? "text-red-400" : low ? "text-amber-400" : "text-white"
+                }`}>
+                  {expired ? "TIME" : display}
+                </span>
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    {expired ? (
+                      <button
+                        onClick={() => { setTimerSecondsLeft(600); setTimerRunning(false); }}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-zinc-700 text-zinc-200 font-semibold hover:bg-zinc-600 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => setTimerRunning((r) => !r)}
+                          className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors ${
+                            timerRunning
+                              ? "bg-zinc-700 text-zinc-200 hover:bg-zinc-600"
+                              : "bg-lime-500 text-black hover:bg-lime-400"
+                          }`}
+                        >
+                          {timerRunning ? "Pause" : timerSecondsLeft === 600 ? "Start" : "Resume"}
+                        </button>
+                        <button
+                          onClick={() => { setTimerSecondsLeft(600); setTimerRunning(false); }}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-zinc-700 text-zinc-200 font-semibold hover:bg-zinc-600 transition-colors"
+                        >
+                          Reset
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {games.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-zinc-400 mb-3">No schedule yet.</p>
@@ -1341,8 +1447,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             courtNumber={game.court.number}
                             podName={gamePodName}
                             podIndex={gamePodIndex >= 0 ? gamePodIndex : undefined}
-                            team1Names={[`${game.team1Player1.name} & ${game.team1Player2.name}`]}
-                            team2Names={[`${game.team2Player1.name} & ${game.team2Player2.name}`]}
+                            team1Names={[game.team1Player1.name, game.team1Player2.name]}
+                            team2Names={[game.team2Player1.name, game.team2Player2.name]}
+                            team1Divisions={[divisionMap[game.team1Player1.id], divisionMap[game.team1Player2.id]]}
+                            team2Divisions={[divisionMap[game.team2Player1.id], divisionMap[game.team2Player2.id]]}
                             team1Score={game.team1Score}
                             team2Score={game.team2Score}
                             completed={game.completed}
@@ -1419,14 +1527,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             const allPlayedSame = leaderboard.length > 0 && leaderboard.every((e) => e.played === leaderboard[0].played);
             const note = (
               <div className="mb-4 px-1">
-                <p className="text-xs text-zinc-500 font-semibold mb-1">Tiebreaker order</p>
-                <ol className="text-xs text-zinc-600 flex flex-col gap-0.5 list-none">
-                  {allPlayedSame && <li className="flex items-center gap-1.5"><span className="text-zinc-700">1.</span> Wins</li>}
-                  <li className="flex items-center gap-1.5"><span className="text-zinc-700">{allPlayedSame ? "2." : "1."}</span> Point differential{!allPlayedSame && <span className="italic text-zinc-700"> per game</span>}</li>
-                  <li className="flex items-center gap-1.5"><span className="text-zinc-700">{allPlayedSame ? "3." : "2."}</span> Points scored{!allPlayedSame && <span className="italic text-zinc-700"> per game</span>}</li>
-                  <li className="flex items-center gap-1.5"><span className="text-zinc-700">{allPlayedSame ? "4." : "3."}</span> Points allowed (fewer is better){!allPlayedSame && <span className="italic text-zinc-700"> per game</span>}</li>
-                </ol>
-                {!allPlayedSame && <p className="text-xs text-zinc-700 mt-1 italic">Game counts differ — wins excluded as a metric.</p>}
+                <p className="text-xs text-zinc-500 font-semibold mb-1">Ranked by</p>
+                <p className="text-xs text-zinc-600">
+                  Point differential{!allPlayedSame ? " per game" : ""} — an 11-5 and a 7-1 both count as +6.
+                </p>
               </div>
             );
             const hasMens = session.courts.some((c) => c.format === "MENS");
@@ -1513,8 +1617,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                   ? g.team1Id === session.teams.find((t) => `${t.player1.name} & ${t.player2.name}` === entry.name)?.id
                                   : [g.team1Player1, g.team1Player2].some((p) => p.name === entry.name);
 
-                                const myTeam   = isTeam1 ? `${g.team1Player1.name} & ${g.team1Player2.name}` : `${g.team2Player1.name} & ${g.team2Player2.name}`;
-                                const theirTeam = isTeam1 ? `${g.team2Player1.name} & ${g.team2Player2.name}` : `${g.team1Player1.name} & ${g.team1Player2.name}`;
+                                const myPlayers   = isTeam1 ? [g.team1Player1, g.team1Player2] : [g.team2Player1, g.team2Player2];
+                                const theirPlayers = isTeam1 ? [g.team2Player1, g.team2Player2] : [g.team1Player1, g.team1Player2];
                                 const myScore    = isTeam1 ? g.team1Score : g.team2Score;
                                 const theirScore = isTeam1 ? g.team2Score : g.team1Score;
                                 const won = myScore !== null && theirScore !== null && myScore > theirScore;
@@ -1524,8 +1628,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                     key={g.id}
                                     courtFormat={g.court.format}
                                     roundNumber={g.roundNumber}
-                                    team1Names={myTeam.split(" & ")}
-                                    team2Names={theirTeam.split(" & ")}
+                                    team1Names={myPlayers.map((p) => p.name)}
+                                    team2Names={theirPlayers.map((p) => p.name)}
+                                    team1Divisions={myPlayers.map((p) => divisionMap[p.id])}
+                                    team2Divisions={theirPlayers.map((p) => divisionMap[p.id])}
                                     team1Score={myScore}
                                     team2Score={theirScore}
                                     completed={g.completed}

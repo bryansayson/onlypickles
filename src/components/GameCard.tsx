@@ -37,6 +37,8 @@ interface ScoreEntry {
   saving?: boolean;
 }
 
+type Division = "UPPER" | "LOWER" | null | undefined;
+
 interface Props {
   courtFormat: "MIXED" | "MENS" | "WOMENS" | "ANY";
   courtNumber?: number;
@@ -44,6 +46,8 @@ interface Props {
   roundNumber?: number;
   team1Names: string[];
   team2Names: string[];
+  team1Divisions?: Division[];
+  team2Divisions?: Division[];
   team1Score: number | null;
   team2Score: number | null;
   completed: boolean;
@@ -63,14 +67,24 @@ interface Props {
   onEdit?: () => void;
 }
 
-function NamesCell({ names, won, highlightName, highlightWinner }: {
-  names: string[]; won: boolean; highlightName?: string; highlightWinner?: boolean;
+function DivisionDot({ division }: { division: Division }) {
+  if (!division) return null;
+  return (
+    <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 shrink-0 relative top-[-1px] ${
+      division === "UPPER" ? "bg-amber-400" : "bg-sky-400"
+    }`} />
+  );
+}
+
+function NamesCell({ names, divisions, won, highlightName, highlightWinner }: {
+  names: string[]; divisions?: Division[]; won: boolean; highlightName?: string; highlightWinner?: boolean;
 }) {
   return (
     <span className={`text-sm font-medium leading-snug self-center min-w-0 ${highlightWinner && won ? "text-lime-400" : ""}`}>
       {names.map((name, i) => (
         <span key={i}>
           {i > 0 && <span className={highlightWinner && won ? "text-lime-600" : "text-zinc-500"}> & </span>}
+          <DivisionDot division={divisions?.[i]} />
           <span className={highlightName === name ? "underline underline-offset-2" : ""}>{name}</span>
         </span>
       ))}
@@ -100,6 +114,7 @@ function ScoreInput({ value, onChange }: { value: string; onChange: (v: string) 
 
 function TeamRow({
   names,
+  divisions,
   score,
   completed,
   won,
@@ -107,6 +122,7 @@ function TeamRow({
   colorWinner,
 }: {
   names: string[];
+  divisions?: Division[];
   score: number | null;
   completed: boolean;
   won: boolean;
@@ -119,6 +135,7 @@ function TeamRow({
         {names.map((name, i) => (
           <span key={i}>
             {i > 0 && <span className={colorWinner && won ? "text-lime-600" : "text-zinc-500"}> & </span>}
+            <DivisionDot division={divisions?.[i]} />
             <span className={highlightName === name ? "underline underline-offset-2" : ""}>{name}</span>
           </span>
         ))}
@@ -138,6 +155,8 @@ export function GameCard({
   roundNumber,
   team1Names,
   team2Names,
+  team1Divisions,
+  team2Divisions,
   team1Score,
   team2Score,
   completed,
@@ -196,7 +215,7 @@ export function GameCard({
       {hasScores ? (
         <div className="grid gap-x-2 gap-y-1.5" style={{ gridTemplateColumns: "1fr auto" }}>
           {/* Team 1 */}
-          <NamesCell names={team1Names} won={t1Won} highlightName={highlightName} highlightWinner={highlightWinner} />
+          <NamesCell names={team1Names} divisions={team1Divisions} won={t1Won} highlightName={highlightName} highlightWinner={highlightWinner} />
           <ScoreInput value={scoreEntry!.t1} onChange={scoreEntry!.onT1Change} />
           {/* vs */}
           <div className="col-span-2 flex items-center gap-2">
@@ -205,13 +224,14 @@ export function GameCard({
             <div className="flex-1 border-t border-zinc-800" />
           </div>
           {/* Team 2 */}
-          <NamesCell names={team2Names} won={t2Won} highlightName={highlightName} highlightWinner={highlightWinner} />
+          <NamesCell names={team2Names} divisions={team2Divisions} won={t2Won} highlightName={highlightName} highlightWinner={highlightWinner} />
           <ScoreInput value={scoreEntry!.t2} onChange={scoreEntry!.onT2Change} />
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
           <TeamRow
             names={team1Names}
+            divisions={team1Divisions}
             score={team1Score}
             completed={completed}
             won={t1Won}
@@ -225,6 +245,7 @@ export function GameCard({
           </div>
           <TeamRow
             names={team2Names}
+            divisions={team2Divisions}
             score={team2Score}
             completed={completed}
             won={t2Won}

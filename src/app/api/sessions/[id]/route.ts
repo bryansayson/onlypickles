@@ -26,6 +26,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.endTime !== undefined) data.endTime = body.endTime ?? null;
   if (body.sessionFormat) data.sessionFormat = body.sessionFormat;
   if (body.hasMedalRound !== undefined) data.hasMedalRound = body.hasMedalRound;
+  if (body.hasDivisions !== undefined) data.hasDivisions = body.hasDivisions;
   const session = await prisma.session.update({ where: { id }, data });
   return NextResponse.json(session);
 }
