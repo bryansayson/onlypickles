@@ -91,10 +91,17 @@ function buildOptions(
     if (seen.has(rounds)) continue;
     seen.add(rounds);
 
-    // maxGames = the ceiling of (total game slots / players) — no player should exceed this
-    const totalSlots = (malesPerRound + femalesPerRound) * rounds;
-    const totalPlayers = (numMales || 0) + (numFemales || 0);
-    const maxGames = totalPlayers > 0 ? Math.ceil(totalSlots / totalPlayers) : target;
+    // maxGames = highest games any group (including division sub-groups) will reach.
+    // This becomes the hard cap passed to the scheduler so no player exceeds the label.
+    const candidates = [
+      numMales > 0 && malesPerRound > 0 ? Math.ceil((malesPerRound * rounds) / numMales) : 0,
+      numFemales > 0 && femalesPerRound > 0 ? Math.ceil((femalesPerRound * rounds) / numFemales) : 0,
+      hasMaleDivisions && mensCourts > 0 ? Math.ceil((mensCourts * 2 * rounds) / upperMales) : 0,
+      hasMaleDivisions && mensCourts > 0 ? Math.ceil((mensCourts * 2 * rounds) / lowerMales) : 0,
+      hasFemaleDivisions && womensCourts > 0 ? Math.ceil((womensCourts * 2 * rounds) / upperFemales) : 0,
+      hasFemaleDivisions && womensCourts > 0 ? Math.ceil((womensCourts * 2 * rounds) / lowerFemales) : 0,
+    ];
+    const maxGames = Math.max(...candidates, target);
 
     options.push({
       rounds,
