@@ -35,6 +35,11 @@ interface RoundOption {
   rounds: number;
   maleGames: string | null;
   femaleGames: string | null;
+  // per-division breakdown when divisions are active
+  upperMaleGames?: string | null;
+  lowerMaleGames?: string | null;
+  upperFemaleGames?: string | null;
+  lowerFemaleGames?: string | null;
 }
 
 function gamesLabel(rounds: number, total: number, perRound: number): string | null {
@@ -90,6 +95,10 @@ function buildOptions(
       rounds,
       maleGames: gamesLabel(rounds, numMales, malesPerRound),
       femaleGames: gamesLabel(rounds, numFemales, femalesPerRound),
+      upperMaleGames: hasMaleDivisions ? gamesLabel(rounds, upperMales, mensCourts * 2) : null,
+      lowerMaleGames: hasMaleDivisions ? gamesLabel(rounds, lowerMales, mensCourts * 2) : null,
+      upperFemaleGames: hasFemaleDivisions ? gamesLabel(rounds, upperFemales, womensCourts * 2) : null,
+      lowerFemaleGames: hasFemaleDivisions ? gamesLabel(rounds, lowerFemales, womensCourts * 2) : null,
     });
   }
   return options;
@@ -214,6 +223,12 @@ export function GenerateDialog({
       const m = opt.maleGames ?? "?";
       const f = opt.femaleGames ?? "?";
       return m === f ? `${m} games each` : `Men ${m} · Women ${f} games`;
+    }
+    // Show per-division breakdown when available
+    const ug = opt.upperFemaleGames ?? opt.upperMaleGames;
+    const lg = opt.lowerFemaleGames ?? opt.lowerMaleGames;
+    if (ug && lg) {
+      return ug === lg ? `${ug} games per player` : `Upper ${ug} · Lower ${lg} games`;
     }
     const g = opt.maleGames ?? opt.femaleGames;
     return g ? `${g} games per player` : "";
