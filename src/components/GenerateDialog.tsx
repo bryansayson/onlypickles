@@ -25,7 +25,7 @@ interface Props {
   sessionId: string;
   sessionFormat: "ROTATING" | "FIXED";
   courts: Court[];
-  players: { gender: string }[];
+  players: { gender: string; division?: string | null }[];
   pods?: PodInfo[];
   unassignedTeamCount?: number;
   onGenerated: () => void;
@@ -44,23 +44,41 @@ function gamesLabel(rounds: number, total: number, perRound: number): string | n
   return `${Math.floor(exact)}–${Math.ceil(exact)}`;
 }
 
+// Returns extra rounds needed so the larger division pool reaches `target` games.
+// Only applied when pools are within 2:1 ratio — beyond that the imbalance is
+// too extreme and would produce an unreasonable number of rounds.
+function divisionRounds(target: number, upper: number, lower: number): number {
+  if (upper === 0 || lower === 0) return 0;
+  if (Math.max(upper, lower) / Math.min(upper, lower) > 2) return 0;
+  return Math.ceil((target * Math.max(upper, lower)) / 2);
+}
+
 function buildOptions(
   numMales: number,
   numFemales: number,
   malesPerRound: number,
   femalesPerRound: number,
+  upperMales = 0,
+  lowerMales = 0,
+  upperFemales = 0,
+  lowerFemales = 0,
 ): RoundOption[] {
   const targets = [5, 6, 7, 8];
+  const hasMaleDivisions = upperMales > 0 && lowerMales > 0;
+  const hasFemaleDivisions = upperFemales > 0 && lowerFemales > 0;
   const seen = new Set<number>();
   const options: RoundOption[] = [];
 
   for (const target of targets) {
-    const mRounds = numMales > 0 && malesPerRound > 0
+    let mRounds = numMales > 0 && malesPerRound > 0
       ? Math.ceil((target * numMales) / malesPerRound) : 0;
-    const fRounds = numFemales > 0 && femalesPerRound > 0
+    let fRounds = numFemales > 0 && femalesPerRound > 0
       ? Math.ceil((target * numFemales) / femalesPerRound) : 0;
-    const rounds = Math.max(mRounds, fRounds, 1);
 
+    if (hasMaleDivisions) mRounds = Math.max(mRounds, divisionRounds(target, upperMales, lowerMales));
+    if (hasFemaleDivisions) fRounds = Math.max(fRounds, divisionRounds(target, upperFemales, lowerFemales));
+
+    const rounds = Math.max(mRounds, fRounds, 1);
     if (seen.has(rounds)) continue;
     seen.add(rounds);
 
@@ -108,18 +126,23 @@ export function GenerateDialog({
   const malesPerRound   = Math.min(numMales,   numMens * 4 + numMixed * 2 + numAny * 4);
   const femalesPerRound = Math.min(numFemales, numWomens * 4 + numMixed * 2 + numAny * 4);
 
+  const upperMales   = players.filter((p) => p.gender === "MALE"   && p.division === "UPPER").length;
+  const lowerMales   = players.filter((p) => p.gender === "MALE"   && p.division === "LOWER").length;
+  const upperFemales = players.filter((p) => p.gender === "FEMALE" && p.division === "UPPER").length;
+  const lowerFemales = players.filter((p) => p.gender === "FEMALE" && p.division === "LOWER").length;
+
   const roundOptions = useMemo(
-    () => buildOptions(numMales, numFemales, malesPerRound, femalesPerRound),
-    [numMales, numFemales, malesPerRound, femalesPerRound],
+    () => buildOptions(numMales, numFemales, malesPerRound, femalesPerRound, upperMales, lowerMales, upperFemales, lowerFemales),
+    [numMales, numFemales, malesPerRound, femalesPerRound, upperMales, lowerMales, upperFemales, lowerFemales],
   );
 
   const mensOptions = useMemo(
-    () => buildOptions(numMales, 0, malesPerRound, 0),
-    [numMales, malesPerRound],
+    () => buildOptions(numMales, 0, malesPerRound, 0, upperMales, lowerMales, 0, 0),
+    [numMales, malesPerRound, upperMales, lowerMales],
   );
   const womensOptions = useMemo(
-    () => buildOptions(0, numFemales, 0, femalesPerRound),
-    [numFemales, femalesPerRound],
+    () => buildOptions(0, numFemales, 0, femalesPerRound, 0, 0, upperFemales, lowerFemales),
+    [numFemales, femalesPerRound, upperFemales, lowerFemales],
   );
 
   const effectiveSelection = selectedRounds ?? roundOptions[0]?.rounds ?? null;

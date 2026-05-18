@@ -117,7 +117,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const [editingPodId, setEditingPodId] = useState<string | null>(null);
   const [podNameInput, setPodNameInput] = useState("");
   const [selectedPodTeamId, setSelectedPodTeamId] = useState<string | null>(null);
-  const [divPickerOpen, setDivPickerOpen] = useState<"UPPER" | "LOWER" | null>(null);
+  const [divPickerOpen, setDivPickerOpen] = useState<string | null>(null);
   const [timerSecondsLeft, setTimerSecondsLeft] = useState(600);
   const [timerRunning, setTimerRunning] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -178,11 +178,15 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   }
 
   async function openDivisions() {
-    await fetch(`/api/sessions/${id}`, {
+    const res = await fetch(`/api/sessions/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ hasDivisions: true }),
     });
+    if (!res.ok) {
+      alert(`Failed to enable divisions: ${res.status}`);
+      return;
+    }
     loadSession();
   }
 
@@ -619,13 +623,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         {/* PLAYERS TAB */}
         <TabsContent value="players">
           {/* ── Shared header ── */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4">
             <span className="text-sm text-zinc-400">{session.sessionPlayers.length} players</span>
-            {isAdmin && (
-              <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
-                + Add Players
-              </Button>
-            )}
           </div>
 
           {/* ── Rotating: gender groups grid ── */}
@@ -651,7 +650,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             <>
               {session.sessionPlayers.length === 0 ? (
                 <p className="text-zinc-500 text-center py-10 text-sm">No players yet.</p>
-              ) : (
+              ) : session.hasDivisions ? null : (
                 <div className="flex flex-col gap-5">
                   {(["MALE", "FEMALE"] as const).map((gender) => {
                     const group = [...session.sessionPlayers]
@@ -688,7 +687,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                   className="absolute top-1 right-1.5 text-zinc-600 hover:text-red-400 text-xs leading-none"
                                 >×</button>
                               )}
-                              {sp.division && (
+                              {isAdmin && sp.division && (
                                 <span className={`absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full ${sp.division === "UPPER" ? "bg-amber-400" : "bg-sky-400"}`} />
                               )}
                               <span className="text-xs font-medium leading-tight break-words w-full pt-1">{sp.player.name}</span>
@@ -701,7 +700,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
               {/* ── Pods section (rotating mode) ── */}
-              {isAdmin && session.sessionPlayers.length > 0 && (
+              {isAdmin && session.sessionPlayers.length > 0 && !session.hasDivisions && (
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-3">
                     <div>
@@ -825,138 +824,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 </div>
               )}
 
-              {/* ── Divisions section (rotating mode) ── */}
-              {isAdmin && session.sessionPlayers.length > 0 && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <span className="text-sm font-semibold text-zinc-200">Divisions</span>
-                      <span className="text-xs text-zinc-500 ml-2">upper &amp; lower skill pools</span>
-                    </div>
-                    {session.hasDivisions ? (
-                      <button
-                        onClick={clearAllDivisions}
-                        className="text-xs text-zinc-500 hover:text-red-400 font-medium transition-colors"
-                      >
-                        Remove
-                      </button>
-                    ) : (
-                      <button
-                        onClick={openDivisions}
-                        className="text-xs text-lime-400 hover:text-lime-300 font-medium"
-                      >
-                        + Add Division
-                      </button>
-                    )}
-                  </div>
-
-                  {!session.hasDivisions ? (
-                    <p className="text-xs text-zinc-600 italic">No divisions — everyone mixes freely.</p>
-                  ) : (
-                    <div className="flex flex-col gap-3">
-                      {(["UPPER", "LOWER"] as const).map((div) => {
-                        const isUpper = div === "UPPER";
-                        const assigned = session.sessionPlayers
-                          .filter((sp) => sp.division === div)
-                          .sort((a, b) => a.player.name.localeCompare(b.player.name));
-                        const unassigned = session.sessionPlayers
-                          .filter((sp) => !sp.division)
-                          .sort((a, b) => a.player.name.localeCompare(b.player.name));
-                        return (
-                          <div key={div} className="rounded-xl border border-zinc-700 bg-zinc-900 p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`w-2 h-2 rounded-full ${isUpper ? "bg-amber-400" : "bg-sky-400"}`} />
-                                <span className={`text-sm font-semibold ${isUpper ? "text-amber-300" : "text-sky-300"}`}>
-                                  {isUpper ? "Upper" : "Lower"}
-                                </span>
-                              </div>
-                              <span className="text-xs text-zinc-500">{assigned.length} players</span>
-                            </div>
-
-                            {assigned.length > 0 ? (
-                              <div className="flex flex-col gap-2 mb-2">
-                                {(["MALE", "FEMALE"] as const).map((gender) => {
-                                  const bucket = assigned.filter((sp) => sp.player.gender === gender);
-                                  if (bucket.length === 0) return null;
-                                  const isMale = gender === "MALE";
-                                  return (
-                                    <div key={gender}>
-                                      <div className="flex items-center gap-1 mb-1">
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
-                                        <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">{isMale ? "Men" : "Women"}</span>
-                                      </div>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {bucket.map((sp) => (
-                                          <span
-                                            key={sp.id}
-                                            className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
-                                              isMale ? "bg-sky-900/60 text-sky-300 border border-sky-800" : "bg-pink-900/60 text-pink-300 border border-pink-800"
-                                            }`}
-                                          >
-                                            {sp.player.name}
-                                            <button
-                                              onClick={() => assignDivision(sp.id, null)}
-                                              className="text-zinc-500 hover:text-red-400 leading-none ml-0.5"
-                                            >×</button>
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-zinc-600 italic mb-2">No players assigned.</p>
-                            )}
-
-                            {unassigned.length > 0 && (
-                              <div>
-                                {divPickerOpen === div ? (
-                                  <div className="mt-1">
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {unassigned.map((sp) => {
-                                        const isMale = sp.player.gender === "MALE";
-                                        return (
-                                          <button
-                                            key={sp.id}
-                                            onClick={() => assignDivision(sp.id, div)}
-                                            className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
-                                              isMale
-                                                ? "bg-sky-950 text-sky-400 border border-sky-800 hover:bg-sky-900"
-                                                : "bg-pink-950 text-pink-400 border border-pink-800 hover:bg-pink-900"
-                                            }`}
-                                          >
-                                            + {sp.player.name}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                    <button
-                                      onClick={() => setDivPickerOpen(null)}
-                                      className="text-xs text-zinc-500 hover:text-zinc-300 mt-1.5"
-                                    >
-                                      Done
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => setDivPickerOpen(div)}
-                                    className="text-xs text-lime-500 hover:text-lime-400 font-medium"
-                                  >
-                                    + Add players
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {isAdmin && (
                 <Button
                   onClick={() => setGenerateOpen(true)}
@@ -968,6 +835,131 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             </>
             );
           })()}
+
+          {/* ── Divisions section (all formats) ── */}
+          {session.sessionPlayers.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <span className="text-sm font-semibold text-zinc-200">Divisions</span>
+                  <span className="text-xs text-zinc-500 ml-2">upper &amp; lower skill pools</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {isAdmin && (
+                    <Button onClick={() => setAddPlayersOpen(true)} size="sm" className="bg-lime-500 hover:bg-lime-400 text-black font-bold">
+                      + Add Players
+                    </Button>
+                  )}
+                  {isAdmin && (session.hasDivisions ? (
+                    <button onClick={clearAllDivisions} className="text-xs text-zinc-500 hover:text-red-400 font-medium transition-colors">
+                      Remove
+                    </button>
+                  ) : (
+                    <button onClick={openDivisions} className="text-xs text-lime-400 hover:text-lime-300 font-medium">
+                      + Add Division
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {!session.hasDivisions ? (
+                <p className="text-xs text-zinc-600 italic">No divisions — everyone mixes freely.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {(["MALE", "FEMALE"] as const).map((gender) => {
+                    const isMale = gender === "MALE";
+                    const genderPlayers = session.sessionPlayers
+                      .filter((sp) => sp.player.gender === gender)
+                      .sort((a, b) => a.player.name.localeCompare(b.player.name));
+                    if (genderPlayers.length === 0) return null;
+                    const unassigned = genderPlayers.filter((sp) => !sp.division);
+
+                    return (
+                      <div key={gender} className="rounded-xl border border-zinc-700 bg-zinc-900 p-3">
+                        {/* Gender header */}
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className={`w-2 h-2 rounded-full ${isMale ? "bg-sky-400" : "bg-pink-400"}`} />
+                          <span className="text-sm font-semibold text-zinc-200">{isMale ? "Men" : "Women"}</span>
+                          <span className="text-xs text-zinc-500">{genderPlayers.length}</span>
+                        </div>
+
+                        {/* Upper and Lower stacked */}
+                        <div className="flex flex-col gap-3 mb-2">
+                          {(["UPPER", "LOWER"] as const).map((div) => {
+                            const isUpper = div === "UPPER";
+                            const bucket = genderPlayers.filter((sp) => sp.division === div);
+                            return (
+                              <div key={div}>
+                                <div className="flex items-center gap-1.5 mb-1.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isUpper ? "bg-amber-400" : "bg-sky-400"}`} />
+                                  <span className={`text-xs font-semibold ${isUpper ? "text-amber-400" : "text-sky-400"}`}>
+                                    {isUpper ? "Upper" : "Lower"}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {bucket.map((sp) => (
+                                    <span
+                                      key={sp.id}
+                                      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                                        isMale ? "bg-sky-900/60 text-sky-300 border border-sky-800" : "bg-pink-900/60 text-pink-300 border border-pink-800"
+                                      }`}
+                                    >
+                                      {sp.player.name}
+                                      {isAdmin && <button onClick={() => assignDivision(sp.id, null)} className="text-zinc-500 hover:text-red-400 leading-none ml-0.5">×</button>}
+                                    </span>
+                                  ))}
+                                  {bucket.length === 0 && <p className="text-xs text-zinc-700 italic">None</p>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Unassigned picker */}
+                        {isAdmin && unassigned.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-zinc-800">
+                            {divPickerOpen === gender ? (
+                              <div>
+                                <div className="flex flex-wrap gap-1.5 mb-1">
+                                  {unassigned.map((sp) => (
+                                    <div key={sp.id} className="flex items-stretch rounded-lg overflow-hidden border border-zinc-700">
+                                      <button
+                                        onClick={() => assignDivision(sp.id, "UPPER")}
+                                        className="text-[10px] font-bold px-2 bg-zinc-800 text-amber-600 hover:bg-amber-900/60 hover:text-amber-300 transition-colors"
+                                      >U</button>
+                                      <span className="text-xs px-2 py-1 bg-zinc-800 border-x border-zinc-700 text-zinc-300">
+                                        {sp.player.name.split(" ")[0]}
+                                      </span>
+                                      <button
+                                        onClick={() => assignDivision(sp.id, "LOWER")}
+                                        className="text-[10px] font-bold px-2 bg-zinc-800 text-sky-600 hover:bg-sky-900/60 hover:text-sky-300 transition-colors border-r border-zinc-700"
+                                      >L</button>
+                                      <button
+                                        onClick={() => removePlayer(sp.playerId)}
+                                        className="text-[10px] px-2 bg-zinc-800 text-zinc-600 hover:bg-red-950 hover:text-red-400 transition-colors"
+                                      >×</button>
+                                    </div>
+                                  ))}
+                                </div>
+                                <button onClick={() => setDivPickerOpen(null)} className="text-xs text-zinc-500 hover:text-zinc-300">Done</button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDivPickerOpen(gender)}
+                                className="text-xs text-lime-500 hover:text-lime-400 font-medium"
+                              >
+                                + Assign players
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Fixed: player roster + team builder ── */}
           {session.sessionFormat === "FIXED" && (() => {
@@ -1449,8 +1441,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                             podIndex={gamePodIndex >= 0 ? gamePodIndex : undefined}
                             team1Names={[game.team1Player1.name, game.team1Player2.name]}
                             team2Names={[game.team2Player1.name, game.team2Player2.name]}
-                            team1Divisions={[divisionMap[game.team1Player1.id], divisionMap[game.team1Player2.id]]}
-                            team2Divisions={[divisionMap[game.team2Player1.id], divisionMap[game.team2Player2.id]]}
+                            team1Divisions={isAdmin ? [divisionMap[game.team1Player1.id], divisionMap[game.team1Player2.id]] : undefined}
+                            team2Divisions={isAdmin ? [divisionMap[game.team2Player1.id], divisionMap[game.team2Player2.id]] : undefined}
                             team1Score={game.team1Score}
                             team2Score={game.team2Score}
                             completed={game.completed}
@@ -1630,8 +1622,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                                     roundNumber={g.roundNumber}
                                     team1Names={myPlayers.map((p) => p.name)}
                                     team2Names={theirPlayers.map((p) => p.name)}
-                                    team1Divisions={myPlayers.map((p) => divisionMap[p.id])}
-                                    team2Divisions={theirPlayers.map((p) => divisionMap[p.id])}
+                                    team1Divisions={isAdmin ? myPlayers.map((p) => divisionMap[p.id]) : undefined}
+                                    team2Divisions={isAdmin ? theirPlayers.map((p) => divisionMap[p.id]) : undefined}
                                     team1Score={myScore}
                                     team2Score={theirScore}
                                     completed={g.completed}
@@ -1782,7 +1774,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         sessionId={id}
         sessionFormat={session.sessionFormat}
         courts={session.courts}
-        players={session.sessionPlayers.map((sp) => ({ gender: sp.player.gender }))}
+        players={session.sessionPlayers.map((sp) => ({ gender: sp.player.gender, division: sp.division }))}
         pods={session.pods.map((p) => ({ id: p.id, name: p.name, teamCount: p.teams.length }))}
         unassignedTeamCount={(() => {
           const podTeamIds = new Set(session.pods.flatMap((p) => p.teams.map((t) => t.id)));
