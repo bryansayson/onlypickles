@@ -461,15 +461,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     }
 
     const entries = Object.values(stats);
-    const allPlayedSame = entries.length > 0 && entries.every((e) => e.played === entries[0].played);
-
-    function perGame(val: number, played: number) { return played > 0 ? val / played : 0; }
 
     return entries.sort((a, b) => {
-      if (allPlayedSame) return b.pointDiff - a.pointDiff;
-      const aPerGame = a.played > 0 ? a.pointDiff / a.played : 0;
-      const bPerGame = b.played > 0 ? b.pointDiff / b.played : 0;
-      return bPerGame - aPerGame;
+      const aAvg = a.played > 0 ? a.pointDiff / a.played : 0;
+      const bAvg = b.played > 0 ? b.pointDiff / b.played : 0;
+      return bAvg - aAvg;
     });
   })();
 
@@ -1497,12 +1493,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           {leaderboard.length === 0 ? (
             <p className="text-zinc-400 text-center py-12">No scores recorded yet.</p>
           ) : (() => {
-            const allPlayedSame = leaderboard.length > 0 && leaderboard.every((e) => e.played === leaderboard[0].played);
             const note = (
               <div className="mb-4 px-1">
                 <p className="text-xs text-zinc-500 font-semibold mb-1">Ranked by</p>
                 <p className="text-xs text-zinc-600">
-                  Point differential{!allPlayedSame ? " per game" : ""} — an 11-5 and a 7-1 both count as +6.
+                  Point differential per game — an 11-5 and a 7-1 both count as +6.
                 </p>
               </div>
             );
