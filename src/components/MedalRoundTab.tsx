@@ -210,9 +210,9 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
       .sort((a, b) => {
         const hasAny = a.played > 0 || b.played > 0;
         if (!hasAny) return 0; // no scores yet — keep roster order
-        return b.wins - a.wins ||
-          (b.played > 0 ? b.pointDiff / b.played : 0) -
-          (a.played > 0 ? a.pointDiff / a.played : 0);
+        const aAvg = a.played > 0 ? a.pointDiff / a.played : 0;
+        const bAvg = b.played > 0 ? b.pointDiff / b.played : 0;
+        return bAvg - aAvg;
       })
       .slice(0, 8);
   }
