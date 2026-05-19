@@ -38,6 +38,33 @@ type Round = Game[];
 // with large groups. We always keep the most-underplayed players first.
 const MAX_CANDIDATES = 20;
 
+// Shuffle an array in-place (Fisher-Yates) and return it.
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Sort descending by value, then shuffle within each equal-value tier so that
+// ties are broken randomly — producing a different schedule each generation.
+function sortAndShuffleTiers<T>(arr: T[], value: (x: T) => number): T[] {
+  const sorted = [...arr].sort((a, b) => value(b) - value(a));
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i + 1;
+    while (j < sorted.length && value(sorted[j]) === value(sorted[i])) j++;
+    shuffleInPlace(sorted.slice(i, j)); // shuffle the tier in-place via splice
+    // re-insert the shuffled slice
+    const tier = sorted.splice(i, j - i);
+    shuffleInPlace(tier);
+    sorted.splice(i, 0, ...tier);
+    i = j;
+  }
+  return sorted;
+}
+
 export function generateSchedule(
   players: RRPlayer[],
   courts: RRCourt[],
@@ -113,22 +140,20 @@ export function generateSchedule(
     return -ids.reduce((s, id) => s + (sitOutCount.get(id) ?? 0), 0) * 15;
   }
 
-  // Sort a pool by sit-out count descending, then cap size for perf.
-  // When divisions are active, cap each division independently so one side
-  // never crowds the other out of the candidate window.
+  // Sort by sit-out count descending with randomised tie-breaking, then cap.
+  // When divisions are active, cap each division independently.
   function candidates(pool: string[]): string[] {
-    const sortBySitOut = (a: string, b: string) =>
-      (sitOutCount.get(b) ?? 0) - (sitOutCount.get(a) ?? 0);
+    const sitOut = (id: string) => sitOutCount.get(id) ?? 0;
 
     const hasDivisions = pool.some((id) => divisions[id]);
     if (!hasDivisions) {
-      return [...pool].sort(sortBySitOut).slice(0, MAX_CANDIDATES);
+      return sortAndShuffleTiers(pool, sitOut).slice(0, MAX_CANDIDATES);
     }
 
     const half = Math.ceil(MAX_CANDIDATES / 2);
-    const upper = pool.filter((id) => divisions[id] === "UPPER").sort(sortBySitOut).slice(0, half);
-    const lower = pool.filter((id) => divisions[id] === "LOWER").sort(sortBySitOut).slice(0, half);
-    const unassigned = pool.filter((id) => !divisions[id]).sort(sortBySitOut).slice(0, half);
+    const upper      = sortAndShuffleTiers(pool.filter((id) => divisions[id] === "UPPER"), sitOut).slice(0, half);
+    const lower      = sortAndShuffleTiers(pool.filter((id) => divisions[id] === "LOWER"), sitOut).slice(0, half);
+    const unassigned = sortAndShuffleTiers(pool.filter((id) => !divisions[id]),            sitOut).slice(0, half);
     return [...upper, ...lower, ...unassigned];
   }
 
@@ -522,20 +547,18 @@ export function generatePodSchedules(
     available: string[],
     format: "MIXED" | "MENS" | "WOMENS" | "ANY"
   ): { team1: [string, string]; team2: [string, string]; score: number } | null {
-    const sortBySitOut = (a: string, b: string) =>
-      (st.sitOutCount.get(b) ?? 0) - (st.sitOutCount.get(a) ?? 0);
-
+    const sitOut = (id: string) => st.sitOutCount.get(id) ?? 0;
     const hasDivisions = available.some((id) => allDivisions[id]);
     let sorted: string[];
     if (hasDivisions) {
       const half = Math.ceil(MAX_CANDIDATES / 2);
       sorted = [
-        ...available.filter((id) => allDivisions[id] === "UPPER").sort(sortBySitOut).slice(0, half),
-        ...available.filter((id) => allDivisions[id] === "LOWER").sort(sortBySitOut).slice(0, half),
-        ...available.filter((id) => !allDivisions[id]).sort(sortBySitOut).slice(0, half),
+        ...sortAndShuffleTiers(available.filter((id) => allDivisions[id] === "UPPER"), sitOut).slice(0, half),
+        ...sortAndShuffleTiers(available.filter((id) => allDivisions[id] === "LOWER"), sitOut).slice(0, half),
+        ...sortAndShuffleTiers(available.filter((id) => !allDivisions[id]),            sitOut).slice(0, half),
       ];
     } else {
-      sorted = [...available].sort(sortBySitOut).slice(0, MAX_CANDIDATES);
+      sorted = sortAndShuffleTiers(available, sitOut).slice(0, MAX_CANDIDATES);
     }
 
     let best: { team1: [string, string]; team2: [string, string]; score: number } | null = null;
