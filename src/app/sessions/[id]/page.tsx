@@ -650,7 +650,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             <>
               {session.sessionPlayers.length === 0 ? (
                 <p className="text-zinc-500 text-center py-10 text-sm">No players yet.</p>
-              ) : session.hasDivisions ? null : (
+              ) : (session.hasDivisions && isAdmin) ? null : (
                 <div className="flex flex-col gap-5">
                   {(["MALE", "FEMALE"] as const).map((gender) => {
                     const group = [...session.sessionPlayers]
