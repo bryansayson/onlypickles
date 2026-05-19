@@ -840,7 +840,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           })()}
 
           {/* ── Divisions section (all formats) ── */}
-          {session.sessionPlayers.length > 0 && (
+          {isAdmin && session.sessionPlayers.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
                 <div>
