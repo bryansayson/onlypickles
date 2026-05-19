@@ -132,6 +132,7 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
     !courts.some((c) => c.format === "MIXED");
 
   const [round, setRound] = useState<MedalRound | null | undefined>(undefined);
+  const [liveGames, setLiveGames] = useState<Game[]>(games);
   const [mode, setMode] = useState<"RANDOM" | "SNAKE" | "FIXED">("RANDOM");
   // Single-bracket manual teams (mixed sessions)
   const [manualTeams, setManualTeams] = useState<BracketTeam[]>([]);
@@ -144,16 +145,35 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
   const [expandedBrackets, setExpandedBrackets] = useState<Set<string>>(new Set());
   const [confirmReset, setConfirmReset] = useState(false);
 
+  // Sync immediately when parent submits a score
+  useEffect(() => { setLiveGames(games); }, [games]);
+
+  // Poll for remote score updates every 30 seconds
   useEffect(() => {
-    fetch(`/api/sessions/${sessionId}/medal-round`)
-      .then((r) => r.json())
-      .then(setRound);
+    const fetchGames = () =>
+      fetch(`/api/sessions/${sessionId}/games`)
+        .then((r) => r.json())
+        .then((data: Game[]) => setLiveGames(data));
+    fetchGames();
+    const interval = setInterval(fetchGames, 30_000);
+    return () => clearInterval(interval);
+  }, [sessionId]);
+
+  // Poll for bracket updates every 30 seconds (another admin may regenerate)
+  useEffect(() => {
+    const fetchRound = () =>
+      fetch(`/api/sessions/${sessionId}/medal-round`)
+        .then((r) => r.json())
+        .then(setRound);
+    fetchRound();
+    const interval = setInterval(fetchRound, 30_000);
+    return () => clearInterval(interval);
   }, [sessionId]);
 
   // ── Player stats from completed games ──────────────────────────────────────
   const playerStats = (() => {
     const stats: Record<string, { wins: number; pointDiff: number; played: number }> = {};
-    for (const g of games) {
+    for (const g of liveGames) {
       if (!g.completed || g.team1Score === null || g.team2Score === null) continue;
       const t1Won = g.team1Score > g.team2Score;
       for (const p of [g.team1Player1, g.team1Player2]) {
