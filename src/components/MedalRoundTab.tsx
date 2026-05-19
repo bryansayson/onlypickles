@@ -152,35 +152,53 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
 
   // ── Player stats from completed games ──────────────────────────────────────
   const playerStats = (() => {
-    const stats: Record<string, { name: string; gender: string; wins: number; pointDiff: number }> = {};
+    const stats: Record<string, { wins: number; pointDiff: number; played: number }> = {};
     for (const g of games) {
       if (!g.completed || g.team1Score === null || g.team2Score === null) continue;
       const t1Won = g.team1Score > g.team2Score;
       for (const p of [g.team1Player1, g.team1Player2]) {
-        if (!stats[p.id]) stats[p.id] = { name: p.name, gender: p.gender, wins: 0, pointDiff: 0 };
+        if (!stats[p.id]) stats[p.id] = { wins: 0, pointDiff: 0, played: 0 };
         if (t1Won) stats[p.id].wins++;
         stats[p.id].pointDiff += g.team1Score - g.team2Score;
+        stats[p.id].played++;
       }
       for (const p of [g.team2Player1, g.team2Player2]) {
-        if (!stats[p.id]) stats[p.id] = { name: p.name, gender: p.gender, wins: 0, pointDiff: 0 };
+        if (!stats[p.id]) stats[p.id] = { wins: 0, pointDiff: 0, played: 0 };
         if (!t1Won) stats[p.id].wins++;
         stats[p.id].pointDiff += g.team2Score - g.team1Score;
+        stats[p.id].played++;
       }
     }
     return stats;
   })();
 
-  const hasScores = Object.keys(playerStats).length > 0;
+  // Always seed from sessionPlayers so we always have a pool to show,
+  // then sort by stats if available (wins → point-diff per game), else keep roster order.
+  function rankPool(gender: "MALE" | "FEMALE") {
+    return sessionPlayers
+      .filter((sp) => sp.player.gender === gender)
+      .map((sp) => {
+        const s = playerStats[sp.player.id];
+        return {
+          name: sp.player.name,
+          gender,
+          wins: s?.wins ?? 0,
+          pointDiff: s?.pointDiff ?? 0,
+          played: s?.played ?? 0,
+        };
+      })
+      .sort((a, b) => {
+        const hasAny = a.played > 0 || b.played > 0;
+        if (!hasAny) return 0; // no scores yet — keep roster order
+        return b.wins - a.wins ||
+          (b.played > 0 ? b.pointDiff / b.played : 0) -
+          (a.played > 0 ? a.pointDiff / a.played : 0);
+      })
+      .slice(0, 8);
+  }
 
-  const topMen = (hasScores
-    ? Object.values(playerStats).filter((p) => p.gender === "MALE").sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff)
-    : sessionPlayers.filter((sp) => sp.player.gender === "MALE").map((sp) => ({ name: sp.player.name, gender: "MALE", wins: 0, pointDiff: 0 }))
-  ).slice(0, 8);
-
-  const topWomen = (hasScores
-    ? Object.values(playerStats).filter((p) => p.gender === "FEMALE").sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff)
-    : sessionPlayers.filter((sp) => sp.player.gender === "FEMALE").map((sp) => ({ name: sp.player.name, gender: "FEMALE", wins: 0, pointDiff: 0 }))
-  ).slice(0, 8);
+  const topMen   = rankPool("MALE");
+  const topWomen = rankPool("FEMALE");
 
   // ── Team generation helpers ────────────────────────────────────────────────
   function randomSingleTeams(): BracketTeam[] {
