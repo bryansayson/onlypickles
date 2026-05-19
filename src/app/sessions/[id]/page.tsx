@@ -470,6 +470,20 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     });
   })();
 
+  // Ranked player list for medal rounds — same sort order as the scores tab.
+  // Keyed by player name; gender joined from sessionPlayers.
+  const rankedPlayers: { name: string; gender: "MALE" | "FEMALE"; wins: number; pointDiff: number; played: number }[] = (() => {
+    if (!session || session.sessionFormat !== "ROTATING") return [];
+    const nameToGender = new Map(
+      session.sessionPlayers.map((sp) => [sp.player.name, sp.player.gender])
+    );
+    return leaderboard.flatMap((entry) => {
+      const gender = nameToGender.get(entry.name);
+      if (!gender) return [];
+      return [{ name: entry.name, gender, wins: entry.wins, pointDiff: entry.pointDiff, played: entry.played }];
+    });
+  })();
+
   const roundsMap = games.reduce<Record<number, Game[]>>((acc, g) => {
     if (!acc[g.roundNumber]) acc[g.roundNumber] = [];
     acc[g.roundNumber].push(g);
@@ -1731,7 +1745,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               courts={session.courts}
               sessionTeams={session.teams}
               sessionPlayers={session.sessionPlayers}
-              games={games}
+              rankedPlayers={rankedPlayers}
             />
           </TabsContent>
         )}

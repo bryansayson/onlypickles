@@ -70,19 +70,16 @@ interface SessionTeam {
   player2: Player;
 }
 
-interface Game {
-  id: string;
-  team1Player1: Player;
-  team1Player2: Player;
-  team2Player1: Player;
-  team2Player2: Player;
-  team1Score: number | null;
-  team2Score: number | null;
-  completed: boolean;
-}
-
 interface Court {
   format: "MIXED" | "MENS" | "WOMENS" | "ANY";
+}
+
+interface RankedPlayer {
+  name: string;
+  gender: "MALE" | "FEMALE";
+  wins: number;
+  pointDiff: number;
+  played: number;
 }
 
 interface Props {
@@ -91,7 +88,7 @@ interface Props {
   courts: Court[];
   sessionTeams: SessionTeam[];
   sessionPlayers: { player: Player }[];
-  games: Game[];
+  rankedPlayers?: RankedPlayer[];
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -123,7 +120,7 @@ const MEDAL_COLORS = {
   semi:   { bg: "bg-zinc-900",      border: "border-zinc-700",      label: "text-zinc-300" },
 };
 
-export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Props) {
+export function MedalRoundTab({ sessionId, courts, sessionPlayers, rankedPlayers = [] }: Props) {
   const { isAdmin } = useAdmin();
 
   const isSplitGender =
@@ -132,7 +129,6 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
     !courts.some((c) => c.format === "MIXED");
 
   const [round, setRound] = useState<MedalRound | null | undefined>(undefined);
-  const [liveGames, setLiveGames] = useState<Game[]>(games);
   const [mode, setMode] = useState<"RANDOM" | "SNAKE" | "FIXED">("RANDOM");
   // Single-bracket manual teams (mixed sessions)
   const [manualTeams, setManualTeams] = useState<BracketTeam[]>([]);
@@ -145,20 +141,6 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
   const [expandedBrackets, setExpandedBrackets] = useState<Set<string>>(new Set());
   const [confirmReset, setConfirmReset] = useState(false);
 
-  // Sync immediately when parent submits a score
-  useEffect(() => { setLiveGames(games); }, [games]);
-
-  // Poll for remote score updates every 30 seconds
-  useEffect(() => {
-    const fetchGames = () =>
-      fetch(`/api/sessions/${sessionId}/games`)
-        .then((r) => r.json())
-        .then((data: Game[]) => setLiveGames(data));
-    fetchGames();
-    const interval = setInterval(fetchGames, 30_000);
-    return () => clearInterval(interval);
-  }, [sessionId]);
-
   // Poll for bracket updates every 30 seconds (another admin may regenerate)
   useEffect(() => {
     const fetchRound = () =>
@@ -170,52 +152,15 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, games }: Prop
     return () => clearInterval(interval);
   }, [sessionId]);
 
-  // ── Player stats from completed games ──────────────────────────────────────
-  const playerStats = (() => {
-    const stats: Record<string, { wins: number; pointDiff: number; played: number }> = {};
-    for (const g of liveGames) {
-      if (!g.completed || g.team1Score === null || g.team2Score === null) continue;
-      const t1Won = g.team1Score > g.team2Score;
-      for (const p of [g.team1Player1, g.team1Player2]) {
-        if (!stats[p.id]) stats[p.id] = { wins: 0, pointDiff: 0, played: 0 };
-        if (t1Won) stats[p.id].wins++;
-        stats[p.id].pointDiff += g.team1Score - g.team2Score;
-        stats[p.id].played++;
-      }
-      for (const p of [g.team2Player1, g.team2Player2]) {
-        if (!stats[p.id]) stats[p.id] = { wins: 0, pointDiff: 0, played: 0 };
-        if (!t1Won) stats[p.id].wins++;
-        stats[p.id].pointDiff += g.team2Score - g.team1Score;
-        stats[p.id].played++;
-      }
-    }
-    return stats;
-  })();
-
-  // Always seed from sessionPlayers so we always have a pool to show,
-  // then sort by stats if available (wins → point-diff per game), else keep roster order.
+  // Rankings come directly from the scores-tab leaderboard (rankedPlayers).
+  // For players with no games yet, fall back to roster order at the bottom.
   function rankPool(gender: "MALE" | "FEMALE") {
-    return sessionPlayers
-      .filter((sp) => sp.player.gender === gender)
-      .map((sp) => {
-        const s = playerStats[sp.player.id];
-        return {
-          name: sp.player.name,
-          gender,
-          wins: s?.wins ?? 0,
-          pointDiff: s?.pointDiff ?? 0,
-          played: s?.played ?? 0,
-        };
-      })
-      .sort((a, b) => {
-        const hasAny = a.played > 0 || b.played > 0;
-        if (!hasAny) return 0; // no scores yet — keep roster order
-        if (b.wins !== a.wins) return b.wins - a.wins;
-        const aAvg = a.played > 0 ? a.pointDiff / a.played : 0;
-        const bAvg = b.played > 0 ? b.pointDiff / b.played : 0;
-        return bAvg - aAvg;
-      })
-      .slice(0, 8);
+    const scored = rankedPlayers.filter((p) => p.gender === gender);
+    const scoredNames = new Set(scored.map((p) => p.name));
+    const unscored = sessionPlayers
+      .filter((sp) => sp.player.gender === gender && !scoredNames.has(sp.player.name))
+      .map((sp) => ({ name: sp.player.name, gender, wins: 0, pointDiff: 0, played: 0 }));
+    return [...scored, ...unscored].slice(0, 8);
   }
 
   const topMen   = rankPool("MALE");
