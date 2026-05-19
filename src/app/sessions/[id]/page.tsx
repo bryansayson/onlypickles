@@ -463,6 +463,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     const entries = Object.values(stats);
 
     return entries.sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
       const aAvg = a.played > 0 ? a.pointDiff / a.played : 0;
       const bAvg = b.played > 0 ? b.pointDiff / b.played : 0;
       return bAvg - aAvg;
