@@ -616,6 +616,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 >
                   Edit date
                 </button>
+                <button
+                  onClick={() => window.open(`/sessions/${id}/print`, "_blank")}
+                  className="text-xs text-zinc-500 hover:text-zinc-200 underline"
+                >
+                  QR code
+                </button>
               </div>
             )}
           </div>
