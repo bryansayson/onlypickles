@@ -139,17 +139,10 @@ export function generateRotating(
         mixedCourts.length * 2 +
         anyCourts.length * 4;
 
-      // Overall cap: no player exceeds the average ceiling regardless of court type
+      // Cap = ceiling of the overall average. This matches the label shown in the dialog
+      // exactly. Division sub-groups are not used here because the dialog only shows
+      // the overall label in split mode, and division-based caps can exceed it.
       addGroup(slotsPerRound, gPlayers.length);
-
-      if (hasDivs) {
-        // Per-division cap for gender-specific/mixed courts (stricter when pools are unequal)
-        const divSlots = genderCourts.length * 2 + mixedCourts.length * 1;
-        if (divSlots > 0) {
-          addGroup(divSlots, upper.length);
-          addGroup(divSlots, lower.length);
-        }
-      }
     }
 
     return groups.length > 0 ? Math.max(...groups) : Infinity;
@@ -176,12 +169,6 @@ export function generateRotating(
         if (slots > 0 && size > 0) gs.push(Math.ceil((slots * numRounds) / size));
       };
       add(gCts.length * 4, gPlayers.length);
-      const upper = gPlayers.filter((p) => p.division === "UPPER");
-      const lower = gPlayers.filter((p) => p.division === "LOWER");
-      if (upper.length > 0 && lower.length > 0 && gCts.length > 0) {
-        add(gCts.length * 2, upper.length);
-        add(gCts.length * 2, lower.length);
-      }
       return gs.length > 0 ? Math.max(...gs) : Infinity;
     }
 
