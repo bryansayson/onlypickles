@@ -139,13 +139,16 @@ export function generateRotating(
         mixedCourts.length * 2 +
         anyCourts.length * 4;
 
+      // Overall cap: no player exceeds the average ceiling regardless of court type
+      addGroup(slotsPerRound, gPlayers.length);
+
       if (hasDivs) {
-        // Each gender-specific court gives 2 slots per division per round
+        // Per-division cap for gender-specific/mixed courts (stricter when pools are unequal)
         const divSlots = genderCourts.length * 2 + mixedCourts.length * 1;
-        addGroup(divSlots, upper.length);
-        addGroup(divSlots, lower.length);
-      } else {
-        addGroup(slotsPerRound, gPlayers.length);
+        if (divSlots > 0) {
+          addGroup(divSlots, upper.length);
+          addGroup(divSlots, lower.length);
+        }
       }
     }
 
