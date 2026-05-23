@@ -158,7 +158,48 @@ export function generateRotating(
   let schedule: ReturnType<typeof generateSchedule>;
 
   if (mode === "splitExactRounds") {
-    schedule = generateSplitSchedule(players, courts, value!, womensValue ?? value!, rrOverrides);
+    const mRounds = value!;
+    const wRounds = womensValue ?? value!;
+
+    const males   = players.filter((p) => p.gender === "MALE");
+    const females = players.filter((p) => p.gender === "FEMALE");
+    const mensCts   = courts.filter((c) => c.format === "MENS");
+    const womensCts = courts.filter((c) => c.format === "WOMENS");
+
+    function capForGroup(
+      gPlayers: { id: string; gender: "MALE" | "FEMALE"; division: "UPPER" | "LOWER" | null }[],
+      gCts: { courtId: string; format: "MIXED" | "MENS" | "WOMENS" | "ANY" }[],
+      numRounds: number,
+    ): number {
+      const gs: number[] = [];
+      const add = (slots: number, size: number) => {
+        if (slots > 0 && size > 0) gs.push(Math.ceil((slots * numRounds) / size));
+      };
+      add(gCts.length * 4, gPlayers.length);
+      const upper = gPlayers.filter((p) => p.division === "UPPER");
+      const lower = gPlayers.filter((p) => p.division === "LOWER");
+      if (upper.length > 0 && lower.length > 0 && gCts.length > 0) {
+        add(gCts.length * 2, upper.length);
+        add(gCts.length * 2, lower.length);
+      }
+      return gs.length > 0 ? Math.max(...gs) : Infinity;
+    }
+
+    const mCap = capForGroup(males, mensCts, mRounds);
+    const wCap = capForGroup(females, womensCts, wRounds);
+
+    const mSched = mRounds > 0 && males.length > 0 && mensCts.length > 0
+      ? generateSchedule(males, mensCts, mRounds, rrOverrides, mCap)
+      : [];
+    const wSched = wRounds > 0 && females.length > 0 && womensCts.length > 0
+      ? generateSchedule(females, womensCts, wRounds, rrOverrides, wCap)
+      : [];
+
+    const total = Math.max(mRounds, wRounds);
+    schedule = Array.from({ length: total }, (_, i) => [
+      ...(mSched[i] ?? []),
+      ...(wSched[i] ?? []),
+    ]);
   } else {
     let numRounds: number;
     if (mode === "splitMinGames") {
