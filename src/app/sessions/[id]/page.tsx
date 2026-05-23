@@ -1432,6 +1432,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         return (
                           <GameCard
                             key={game.id}
+                            id={game.id}
                             courtFormat={game.court.format}
                             courtNumber={game.court.number}
                             podName={gamePodName}
@@ -1454,6 +1455,20 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                               onT2Change: (v) => setScores((prev) => ({ ...prev, [game.id]: { t1: sc?.t1 ?? "", t2: v } })),
                               onSave: (!game.completed || isIndividualEdit) ? () => submitScore(game.id) : undefined,
                               onCancel: isIndividualEdit ? () => clearGameScore(game.id) : undefined,
+                              onAutoSave: (!game.completed || isIndividualEdit) ? (t2Value) => {
+                                const t1n = parseInt(sc?.t1 ?? "");
+                                const t2n = parseInt(t2Value);
+                                if (isNaN(t1n) || isNaN(t2n)) return;
+                                fetch(`/api/games/${game.id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ team1Score: t1n, team2Score: t2n }),
+                                }).then(() => loadGames());
+                                setScores((prev) => { const next = { ...prev }; delete next[game.id]; return next; });
+                                const sorted = [...roundGames].sort((a, b) => a.court.number - b.court.number);
+                                const nextGame = sorted[sorted.findIndex((g) => g.id === game.id) + 1];
+                                if (nextGame) requestAnimationFrame(() => document.getElementById(`${nextGame.id}-t1`)?.focus());
+                              } : undefined,
                             } : undefined}
                           />
                         );

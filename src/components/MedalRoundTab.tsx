@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAdmin } from "@/components/AdminProvider";
-import { MatchupDisplay } from "@/components/MatchupDisplay";
+import { GameCard as RRGameCard } from "@/components/GameCard";
 
 interface BracketTeam {
   id: string;
@@ -114,11 +114,6 @@ function makeBracket(teams: BracketTeam[]): SubBracket {
   };
 }
 
-const MEDAL_COLORS = {
-  gold:   { bg: "bg-yellow-900/30", border: "border-yellow-500/40", label: "text-yellow-400" },
-  bronze: { bg: "bg-orange-900/30", border: "border-orange-600/40", label: "text-orange-400" },
-  semi:   { bg: "bg-zinc-900",      border: "border-zinc-700",      label: "text-zinc-300" },
-};
 
 export function MedalRoundTab({ sessionId, courts, sessionPlayers, rankedPlayers = [] }: Props) {
   const { isAdmin } = useAdmin();
@@ -613,9 +608,9 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, rankedPlayers
   // ── Bracket view ───────────────────────────────────────────────────────────
   const isDual = !!(round.data.mens && round.data.womens);
 
-  function GameCard({ gameKey, game, title, style, bracket, teamById }: {
+  function BracketCard({ gameKey, game, title, bracket, teamById }: {
     gameKey: string; game: BracketGame; title: string;
-    style: typeof MEDAL_COLORS.semi; bracket?: "mens" | "womens";
+    bracket?: "mens" | "womens";
     teamById: Record<string, BracketTeam>;
   }) {
     const scoreKey = bracket ? `${bracket}.${gameKey}` : gameKey;
@@ -625,35 +620,30 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, rankedPlayers
     const hasResult = game.team1Score !== null && game.team2Score !== null;
     const isEditing = !!sc;
     const showInputs = isAdmin && (isEditing || (!hasResult && t1 && t2));
-    const t1Won = hasResult && game.team1Score! > game.team2Score!;
-    const t2Won = hasResult && game.team2Score! > game.team1Score!;
 
     return (
-      <div className={`rounded-xl border p-3 ${style.bg} ${style.border}`}>
-        <div className="flex items-center justify-between mb-2.5">
-          <span className={`text-xs font-bold ${style.label}`}>{title}</span>
-          {hasResult && !isEditing && isAdmin && (
-            <button
-              onClick={() => setScores((p) => ({ ...p, [scoreKey]: { t1: String(game.team1Score), t2: String(game.team2Score) } }))}
-              className="text-xs text-zinc-500 hover:text-zinc-300 underline"
-            >Edit</button>
-          )}
-        </div>
-        <MatchupDisplay
-          team1={{ names: t1?.playerNames ?? [], score: game.team1Score, won: t1Won }}
-          team2={{ names: t2?.playerNames ?? [], score: game.team2Score, won: t2Won }}
-          completed={hasResult}
-          editing={showInputs ? {
-            t1: sc?.t1 ?? "",
-            t2: sc?.t2 ?? "",
-            onT1Change: (v) => setScores((p) => ({ ...p, [scoreKey]: { t1: v, t2: sc?.t2 ?? "" } })),
-            onT2Change: (v) => setScores((p) => ({ ...p, [scoreKey]: { t1: sc?.t1 ?? "", t2: v } })),
-            onSave: () => saveScore(gameKey, bracket),
-            onCancel: () => setScores((p) => { const n = { ...p }; delete n[scoreKey]; return n; }),
-            saving: saving === scoreKey,
-          } : undefined}
-        />
-      </div>
+      <RRGameCard
+        courtFormat="ANY"
+        podName={title}
+        team1Names={t1?.playerNames ?? []}
+        team2Names={t2?.playerNames ?? []}
+        team1Score={game.team1Score}
+        team2Score={game.team2Score}
+        completed={hasResult}
+        highlightWinner={hasResult}
+        scoreEntry={showInputs ? {
+          t1: sc?.t1 ?? "",
+          t2: sc?.t2 ?? "",
+          onT1Change: (v) => setScores((p) => ({ ...p, [scoreKey]: { t1: v, t2: sc?.t2 ?? "" } })),
+          onT2Change: (v) => setScores((p) => ({ ...p, [scoreKey]: { t1: sc?.t1 ?? "", t2: v } })),
+          onSave: () => saveScore(gameKey, bracket),
+          onCancel: () => setScores((p) => { const n = { ...p }; delete n[scoreKey]; return n; }),
+          saving: saving === scoreKey,
+        } : undefined}
+        onEdit={hasResult && !isEditing && isAdmin
+          ? () => setScores((p) => ({ ...p, [scoreKey]: { t1: String(game.team1Score), t2: String(game.team2Score) } }))
+          : undefined}
+      />
     );
   }
 
@@ -690,33 +680,46 @@ export function MedalRoundTab({ sessionId, courts, sessionPlayers, rankedPlayers
             onClick={() => setExpandedBrackets((prev) => new Set([...prev, expandKey]))}
             className="text-xs text-zinc-600 hover:text-zinc-300 underline text-center mt-1"
           >
-            Show bracket
+            Match history
           </button>
         </div>
       );
     }
 
-    return (
-      <div className="flex flex-col gap-3">
-        {concluded && (
+    // Concluded + expanded: match history grid (scores-tab style)
+    if (concluded) {
+      return (
+        <div className="flex flex-col gap-3">
           <button
             onClick={() => setExpandedBrackets((prev) => { const s = new Set(prev); s.delete(expandKey); return s; })}
             className="text-xs text-zinc-600 hover:text-zinc-300 underline text-right"
           >
             Collapse
           </button>
-        )}
+          <div className="grid grid-cols-2 gap-2">
+            <BracketCard gameKey="semi1" game={sub.semi1} title="Semi-Final 1" bracket={bracket} teamById={teamById} />
+            <BracketCard gameKey="semi2" game={sub.semi2} title="Semi-Final 2" bracket={bracket} teamById={teamById} />
+            <BracketCard gameKey="gold" game={sub.gold} title="🥇 Gold Medal" bracket={bracket} teamById={teamById} />
+            <BracketCard gameKey="bronze" game={sub.bronze} title="🥉 Bronze Medal" bracket={bracket} teamById={teamById} />
+          </div>
+        </div>
+      );
+    }
+
+    // In-progress: sectioned bracket with editing
+    return (
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
           <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Semi-Finals</p>
           <div className="grid grid-cols-2 gap-2">
-            <GameCard gameKey="semi1" game={sub.semi1} title="Semi-Final 1" style={MEDAL_COLORS.semi} bracket={bracket} teamById={teamById} />
-            <GameCard gameKey="semi2" game={sub.semi2} title="Semi-Final 2" style={MEDAL_COLORS.semi} bracket={bracket} teamById={teamById} />
+            <BracketCard gameKey="semi1" game={sub.semi1} title="Semi-Final 1" bracket={bracket} teamById={teamById} />
+            <BracketCard gameKey="semi2" game={sub.semi2} title="Semi-Final 2" bracket={bracket} teamById={teamById} />
           </div>
         </div>
         <div className="flex flex-col gap-3">
           <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Finals</p>
-          <GameCard gameKey="gold" game={sub.gold} title="🥇 Gold Medal" style={MEDAL_COLORS.gold} bracket={bracket} teamById={teamById} />
-          <GameCard gameKey="bronze" game={sub.bronze} title="🥉 Bronze Medal" style={MEDAL_COLORS.bronze} bracket={bracket} teamById={teamById} />
+          <BracketCard gameKey="gold" game={sub.gold} title="🥇 Gold Medal" bracket={bracket} teamById={teamById} />
+          <BracketCard gameKey="bronze" game={sub.bronze} title="🥉 Bronze Medal" bracket={bracket} teamById={teamById} />
         </div>
       </div>
     );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -35,6 +36,8 @@ interface ScoreEntry {
   onSave?: () => void;
   onCancel?: () => void;
   saving?: boolean;
+  /** Called with the typed t2 value when 2–9 is entered in the team 2 input — skips the Save button and triggers auto-save + advance. */
+  onAutoSave?: (t2: string) => void;
 }
 
 type Division = "UPPER" | "LOWER" | null | undefined;
@@ -65,6 +68,8 @@ interface Props {
   scoreEntry?: ScoreEntry;
   /** Pass to show a per-card edit button (individual score correction) */
   onEdit?: () => void;
+  /** HTML id placed on the outer div — used by auto-advance to locate this card in the DOM */
+  id?: string;
 }
 
 function DivisionDot({ division }: { division: Division }) {
@@ -79,6 +84,7 @@ function DivisionDot({ division }: { division: Division }) {
 function NamesCell({ names, divisions, won, highlightName, highlightWinner }: {
   names: string[]; divisions?: Division[]; won: boolean; highlightName?: string; highlightWinner?: boolean;
 }) {
+  if (names.length === 0) return <span className="text-sm text-zinc-600 italic self-center flex-1">TBD</span>;
   return (
     <span className={`text-sm font-medium leading-snug self-center min-w-0 ${highlightWinner && won ? "text-lime-400" : ""}`}>
       {names.map((name, i) => (
@@ -92,9 +98,18 @@ function NamesCell({ names, divisions, won, highlightName, highlightWinner }: {
   );
 }
 
-function ScoreInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ScoreInput({ value, onChange, inputRef, onAutoAdvance, inputId }: {
+  value: string;
+  onChange: (v: string) => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Called with the entered value when 2–9 is typed */
+  onAutoAdvance?: (v: string) => void;
+  inputId?: string;
+}) {
   return (
     <Input
+      id={inputId}
+      ref={inputRef}
       type="number"
       inputMode="numeric"
       min={0}
@@ -106,7 +121,10 @@ function ScoreInput({ value, onChange }: { value: string; onChange: (v: string) 
         const raw = e.target.value;
         if (raw === "") { onChange(""); return; }
         const n = Math.min(11, Math.max(0, parseInt(raw, 10)));
-        if (!isNaN(n)) onChange(String(n));
+        if (!isNaN(n)) {
+          onChange(String(n));
+          if (n >= 2 && n <= 9) onAutoAdvance?.(String(n));
+        }
       }}
     />
   );
@@ -131,15 +149,19 @@ function TeamRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className={`text-sm font-medium flex-1 leading-snug ${colorWinner && won ? "text-lime-400" : ""}`}>
-        {names.map((name, i) => (
-          <span key={i}>
-            {i > 0 && <span className={colorWinner && won ? "text-lime-600" : "text-zinc-500"}> & </span>}
-            <DivisionDot division={divisions?.[i]} />
-            <span className={highlightName === name ? "underline underline-offset-2" : ""}>{name}</span>
-          </span>
-        ))}
-      </span>
+      {names.length === 0 ? (
+        <span className="text-sm text-zinc-600 italic flex-1">TBD</span>
+      ) : (
+        <span className={`text-sm font-medium flex-1 leading-snug ${colorWinner && won ? "text-lime-400" : ""}`}>
+          {names.map((name, i) => (
+            <span key={i}>
+              {i > 0 && <span className={colorWinner && won ? "text-lime-600" : "text-zinc-500"}> & </span>}
+              <DivisionDot division={divisions?.[i]} />
+              <span className={highlightName === name ? "underline underline-offset-2" : ""}>{name}</span>
+            </span>
+          ))}
+        </span>
+      )}
       {completed && score !== null ? (
         <span className={`text-lg font-bold tabular-nums w-14 text-right shrink-0 ${won ? "text-lime-400" : "text-zinc-500"}`}>
           {score}
@@ -150,6 +172,7 @@ function TeamRow({
 }
 
 export function GameCard({
+  id,
   courtFormat,
   courtNumber,
   roundNumber,
@@ -168,6 +191,8 @@ export function GameCard({
   scoreEntry,
   onEdit,
 }: Props) {
+  const t1Ref = useRef<HTMLInputElement>(null);
+  const t2Ref = useRef<HTMLInputElement>(null);
   const hasScores = scoreEntry !== undefined;
   const t1Won = completed && team1Score !== null && team2Score !== null && team1Score > team2Score;
   const t2Won = completed && team1Score !== null && team2Score !== null && team2Score > team1Score;
@@ -179,7 +204,7 @@ export function GameCard({
     : "bg-zinc-900 border-zinc-700";
 
   return (
-    <div className={`rounded-lg border px-3 py-2.5 min-w-0 ${cardStyle}`}>
+    <div id={id} className={`rounded-lg border px-3 py-2.5 min-w-0 ${cardStyle}`}>
       {/* Badge row — flush left to align with team names */}
       {(roundNumber !== undefined || courtNumber !== undefined || podName || onEdit) && (
         <div className="flex items-center gap-2 mb-1.5">
@@ -216,7 +241,7 @@ export function GameCard({
         <div className="grid gap-x-2 gap-y-1.5" style={{ gridTemplateColumns: "1fr auto" }}>
           {/* Team 1 */}
           <NamesCell names={team1Names} divisions={team1Divisions} won={t1Won} highlightName={highlightName} highlightWinner={highlightWinner} />
-          <ScoreInput value={scoreEntry!.t1} onChange={scoreEntry!.onT1Change} />
+          <ScoreInput value={scoreEntry!.t1} onChange={scoreEntry!.onT1Change} inputRef={t1Ref} onAutoAdvance={() => t2Ref.current?.focus()} inputId={id ? `${id}-t1` : undefined} />
           {/* vs */}
           <div className="col-span-2 flex items-center gap-2">
             <div className="flex-1 border-t border-zinc-800" />
@@ -225,7 +250,7 @@ export function GameCard({
           </div>
           {/* Team 2 */}
           <NamesCell names={team2Names} divisions={team2Divisions} won={t2Won} highlightName={highlightName} highlightWinner={highlightWinner} />
-          <ScoreInput value={scoreEntry!.t2} onChange={scoreEntry!.onT2Change} />
+          <ScoreInput value={scoreEntry!.t2} onChange={scoreEntry!.onT2Change} inputRef={t2Ref} onAutoAdvance={scoreEntry?.onAutoSave ? (v) => scoreEntry.onAutoSave!(v) : undefined} />
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
