@@ -463,7 +463,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     const entries = Object.values(stats);
 
     return entries.sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
       const aAvg = a.played > 0 ? a.pointDiff / a.played : 0;
       const bAvg = b.played > 0 ? b.pointDiff / b.played : 0;
       return bAvg - aAvg;
@@ -1518,7 +1517,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               <div className="mb-4 px-1">
                 <p className="text-xs text-zinc-500 font-semibold mb-1">Ranked by</p>
                 <p className="text-xs text-zinc-600">
-                  Point differential per game — an 11-5 and a 7-1 both count as +6.
+                  Ranked by average point differential per game played.
                 </p>
               </div>
             );
@@ -1579,10 +1578,16 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         <span className="font-semibold text-lime-400">{entry.wins}W</span>
                         <span className="font-semibold text-red-400">{entry.losses}L</span>
                         <span>
-                          <span className={`font-semibold ${entry.pointDiff >= 0 ? "text-lime-400" : "text-red-400"}`}>
-                            {entry.pointDiff > 0 ? "+" : ""}{entry.pointDiff}
-                          </span>
-                          <span className="text-zinc-500 text-xs"> diff</span>
+                          {(() => {
+                            const avg = entry.played > 0 ? entry.pointDiff / entry.played : 0;
+                            const display = (avg > 0 ? "+" : "") + avg.toFixed(1);
+                            return (
+                              <span className={`font-semibold ${avg >= 0 ? "text-lime-400" : "text-red-400"}`}>
+                                {display}
+                              </span>
+                            );
+                          })()}
+                          <span className="text-zinc-500 text-xs"> avg diff</span>
                         </span>
                         <span className="font-semibold text-sky-400">
                           {entry.played}/{entry.scheduled}

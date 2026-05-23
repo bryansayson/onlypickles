@@ -49,9 +49,9 @@ export function QrPrint({ sessionId, sessionName, sessionDate }: Props) {
       {/* ── Print styles ── */}
       <style>{`
         @media print {
-          body { margin: 0; }
-          .screen-only { display: none !important; }
-          .print-page { padding: 24pt; }
+          body * { visibility: hidden; }
+          .print-page, .print-page * { visibility: visible; }
+          .print-page { position: fixed; top: 0; left: 0; width: 100%; padding: 24pt; }
         }
         @media screen {
           .print-only { display: none !important; }
